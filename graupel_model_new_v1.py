@@ -69,8 +69,6 @@ diam = np.array([.05, .1, .15, .2, .3, .4,
                   .5, .6, .7, .8, .9, 1., 1.1, 1.2,
                   1.4, 1.6, 1.8, 2.0, 2.2, 2.4]) ## i assume initial particle diameters (mm) ??
 
-save_loc = "./model_output/" # location to save output files
-os.makedirs(save_loc, exist_ok=True) # if make folder, if already exist, do nothing
 
 MAX1 = len(diam)   # number of particle size categories
 MAX2 = 1500        # number of altitude values 
@@ -85,7 +83,7 @@ RATDOWN = 0.05
 WCTDEB = -3. # debris collapse speed (m/s) ??
 CTOP = 8. # cloud top (km)
 TDEPTH = 2. # thermal depth (km)
-TGAP = 1. # gap between thermals ??
+TGAP = 1. # gap between thermals - bottom of thermal 1 and top of thermal 2 (km) ?
 TWID = 2. # thermal width (km) ? 
 DOWN = 0.4
 UMAX = 2. # max updraft (m/s) ??
@@ -98,7 +96,7 @@ T0 = 288. # surface temperature (K)
 GAMMA = 0.0065 # constant lapse rate (ºC/m)
 RHOI = 920 # density of ice (kg/m^3)
 EPS = 0.622 # constant for water vapour calculation
-PI = 3.14159                              # constant pi 
+PI = 3.14159 # constant pi 
 DELTIM = 5. # time step interval (s)
 RD = 287.05 # gas constant for dry air (J/kg/K)
 RV = 461.51 # gas constant for water vapor (J/kg/K)
@@ -193,6 +191,9 @@ nxtick = 0                                       # number of ticks on x-axis
 topflag = tht2flag = thb2flag = 0                # flag set if base of thermal at top
 
 post1 = posb1 = post2 = posb2 = 0                # index for thermal velocities
+
+
+
 
 pname = ""
 lab1 = lab2 = lab3 = lab4 = lab5 = lab6 = ""     # for labels
@@ -502,6 +503,14 @@ def graupel(j):
     rhop[j][0] = rhog # initial density - 900 (kg/m^3)
     # initial mass
     mass = 4. * PI * rad ** 3 * rhog / 3. # assume spherical particle (kg)
+
+    ## save the initial values for plotting
+    #particle_radius[j, 0] = rad
+    particle_diameter[j, 0] = rad * 2
+    particle_density[j, 0] = rhog
+    particle_mass[j, 0] = mass
+    particle_altitude[j, 0] = z / 1000.
+    particle_horizontal_position[j, 0] = 0.
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     # set counters and things - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -532,7 +541,7 @@ def graupel(j):
 
     # time-step growth loop - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # this is the main part, go through each time step and calculate growth of graupel particle
-    for i in range(1, MAX3):
+    for i in range(1, numt):
 
         # 1. calculate drag for particle * * * * * * * * * * * * * * * * * *
         cd = drag(rad, rhog, rhoa)
@@ -671,33 +680,38 @@ def graupel(j):
                         if 0.4 <= ns <= 10.:
                             vimp = (0.1701 + 0.7246 * w + 0.2257 * w2 - 1.13 * w3
                                     + 0.5756 * w4)
-                        if ns < 0.4:
+                        elif ns < 0.4:
                             vimp = 0
-                        if ns > 10.0:
+                        #if ns > 10.0:
+                        else:
                             vimp = 0.57
-                    if 20. < nre <= 65.:
+                    elif 20. < nre <= 65.:
                         if 0.2 <= ns <= 10.:
                             vimp = (0.2927 + 0.5085 * w - 0.03453 * w2 - 0.2184 * w3
                                     + 0.03595 * w4)
-                        if ns < 0.2:
+                        elif ns < 0.2:
                             vimp = 0.0
-                        if ns > 10.0:
+                        #if ns > 10.0:
+                        else:
                             vimp = 0.59
-                    if 65. < nre <= 200.:
+                    elif 65. < nre <= 200.:
                         if 0.2 <= ns <= 10.0:
                             vimp = (0.3272 + 0.4907 * w - 0.09452 * w2 - 0.1906 * w3
                                     + 0.07105 * w4)
-                        if ns < 0.2:
+                        elif ns < 0.2:
                             vimp = 0.0
-                        if ns > 10.0:
+                        #if ns > 10.0:
+                        else:
                             vimp = 0.61
-                    if nre > 200.:
+                    #if nre > 200.:
+                    else:
                         if 0.2 <= ns <= 10.0:
                             vimp = (0.356 + 0.4738 * w - 0.1233 * w2 - 0.1618 * w3
                                     + 0.08087 * w4)
-                        if ns < 0.2:
+                        elif ns < 0.2:
                             vimp = 0.0
-                        if ns > 10.0:
+                        #if ns > 10.0:
+                        else:
                             vimp = 0.63
                     vimp = vimp * vt # this is the impact velocity 
 
@@ -887,6 +901,16 @@ def graupel(j):
         zold = z
 
         indx += 1
+
+        ## save again for netcdf
+        particle_diameter[j, i] = rad * 2
+        particle_density[j, i] = rhog
+        particle_mass[j, i] = mass
+        particle_surface_temperature[j, i] = ts
+        particle_terminal_velocity[j, i] = vt
+        particle_altitude[j, i] = zkm
+        particle_horizontal_position[j, i] = xp[j][i]
+
     # end of time-step growth loop - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # i dont think this else statement needed?? no if to match it
     #else:
@@ -911,6 +935,10 @@ def main():
     global concl, diaml, conc, radi
     global lab1, lab2, lab3, lab4, lab5, lab6
     global c1, xmax, nxtick
+    global particle_diameter, particle_density, particle_mass, particle_surface_temperature
+    global particle_terminal_velocity, particle_altitude, particle_horizontal_position, particle_vertical_position
+    
+
 
     # check command line arguments - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     pname = sys.argv[0] # python script name
@@ -918,8 +946,7 @@ def main():
         print(
             f"Usage: {pname} zi (km) wmax wbase (m/s) z@wmax (km) "
             f"run_time (min) zspec (km)",
-            file=sys.stderr,
-        )
+            file=sys.stderr,)
         sys.exit(0)
 
     zinit = 1000. * float(sys.argv[1]) # initial height of particle (m)
@@ -929,6 +956,27 @@ def main():
     runtime = float(sys.argv[5]) # simulation run time (min)
     level = float(sys.argv[6]) # height of cloud drop size spectrum (km) - for plotting
 
+    ## save tings babe! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    save_loc = "./model_output/" # location to save output files
+    os.makedirs(save_loc, exist_ok=True) # if make folder, if already exist, do nothing
+    save_name = 'test_output'
+    # setting up time and height for model environment
+    numt = int(runtime * 60. / DELTIM) ### number of simulation time steps (s)
+    time = np.zeros(numt) # empty time array
+    time[:] = np.arange(numt) * DELTIM # time array
+    alt = np.zeros(MAX2)
+    alt[:] = np.arange(MAX2) * 10. # height array
+
+    """ for saving ice particle properties """
+    particle_diameter = np.full((MAX1, numt), np.nan)
+    particle_density = np.full((MAX1, numt), np.nan)
+    particle_mass = np.full((MAX1, numt), np.nan)
+    particle_surface_temperature = np.full((MAX1, numt), np.nan)
+    particle_terminal_velocity = np.full((MAX1, numt), np.nan)
+    particle_altitude = np.full((MAX1, numt), np.nan)
+    particle_horizontal_position = np.full((MAX1, numt), np.nan)
+    particle_vertical_position = np.full((MAX1, numt), np.nan)
+    
     # initialise arrays and variables - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # zero arrays (numpy arrays are already zero-initialised, but mirror
     # the explicit zeroing from the C source in case this is re-run)
@@ -952,7 +1000,7 @@ def main():
     #pbase = 970.
     #tbase = 25.2
     zbase = ptz(pbase)
-    print(zbase)
+    #print(zbase)
     cdepth = CTOP - zbase / 1000. # depth of cloud (km)
 
     # vertical velocity change with alt -> slope and intercept of (linear) vertical velocity profile
@@ -963,8 +1011,6 @@ def main():
     for ii in range(MAX2):
         # create atmosphere environment at every height
         # then at each level, define atmospheric properties
-        alt[ii] = 10. * ii # each level seperated by 10 m
-
         if alt[ii] >= zbase:
             ps[ii] = ztp(alt[ii]) # pressure
             at_, alwc_ = trev(pbase, tbase, ps[ii]) # temp + LWC
@@ -985,10 +1031,6 @@ def main():
             # in cloud + alt >= zmax
             # decreasing updraft above this
             vv[ii] = maxup - (alt[ii] / 1000 - zmax) * 1.75
-
-    # number of simulation time steps - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    # number of time points
-    numt = int(runtime * 60. / DELTIM)
 
     # setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # initial positions of thermals
@@ -1108,6 +1150,7 @@ def main():
 
     # growing all particles in graupel function - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # using pre-defined evolution of thermals
+
     wi = 0. # updraft m/s
     for jj in range(MAX1):
         j = jj
@@ -1161,10 +1204,137 @@ def main():
             if ((zp[jj][i] < level + 0.1 and zp[jj][i] > level - 0.1) and (zp[jj][i] < zp[jj][i - 1]) and (xp[jj][i] < TWID - DOWN)):
                 concl[jj] = conc[jj] # initial conc of particle size
                 diaml[jj] = diamp[jj][i] # grown diameter at requested level
-    plot_results()
+
+    #plot_results()
+    ## making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
+    fname = os.path.join(save_loc, f"{save_name}.nc")
+    nc = Dataset(fname, "w", format="NETCDF4")
+    # dimensions - - - - - -
+    nc.createDimension("time", numt)
+    nc.createDimension("height", MAX2)
+    nc.createDimension("particle", MAX1) ## we are having particles as their own dimension
+
+    # variables - - - - - -
+    time_var = nc.createVariable("time", "f4", ("time",))
+    time_var.units = f"seconds since simulation start (dt={DELTIM}s)"
+    time_var.long_name = "simulation time"
+    time_var[:] = np.arange(numt) * DELTIM
+
+    height_var = nc.createVariable("height", "f4", ("height",))
+    height_var.units = "m"
+    height_var.long_name = "height above ground"
+    height_var[:] = np.asarray(alt)
+
+    particle_var = nc.createVariable("particle", "i4", ("particle",))
+    particle_var.units = "dimensionless"
+    particle_var.long_name = "particle index"
+    particle_var[:] = diam #np.arange(MAX1)
+
+    ##### deal with environment variables #############
+    ## envi variables varying with height:
+    env_nc = nc.createGroup("environment")
+    pressure_var = env_nc.createVariable("pressure", "f4", ("height",), fill_value=np.nan)
+    pressure_var.units = "hPa"
+    pressure_var.long_name = "environmental pressure"
+    pressure_var[:] = ps
+
+    temperature_var = env_nc.createVariable("temperature", "f4", ("height",), fill_value=np.nan)
+    temperature_var.units = "K"
+    temperature_var.long_name = "environmental temperature"
+    temperature_var[:] = tr
+
+    lwc_var = env_nc.createVariable("lwc", "f4", ("height",), fill_value=np.nan)
+    lwc_var.units = "kg m-3"
+    lwc_var.long_name = "environmental liquid water content"
+    lwc_var[:] = lw
+
+    drop_diameter_var = env_nc.createVariable("cloud_drop_diameter", "f4", ("height",), fill_value=np.nan)
+    drop_diameter_var.units = "um"
+    drop_diameter_var.long_name = "mean cloud drop diameter"
+    drop_diameter_var[:] = db
+
+    velocity_var = env_nc.createVariable("vertical_velocity", "f4", ("height",), fill_value=np.nan)
+    velocity_var.units = "m s-1"
+    velocity_var.long_name = "environmental vertical velocity"
+    velocity_var[:] = vv
+
+    ## envi variables varying with time:
+    thermal_top_1 = env_nc.createVariable("thermal_top_1", "f4", ("time",), fill_value=np.nan)
+    thermal_top_1.units = "km"
+    thermal_top_1.long_name = "top altitude of thermal 1"
+    thermal_top_1[:] = np.where(thtop1[:numt] == BAD, np.nan, thtop1[:numt])
+
+    thermal_base_1 = env_nc.createVariable("thermal_base_1", "f4", ("time",), fill_value=np.nan)
+    thermal_base_1.units = "km"
+    thermal_base_1.long_name = "base altitude of thermal 1"
+    thermal_base_1[:] = np.where(thbase1[:numt] == BAD, np.nan, thbase1[:numt])
+
+    thermal_top_2 = env_nc.createVariable("thermal_top_2", "f4", ("time",), fill_value=np.nan)
+    thermal_top_2.units = "km"
+    thermal_top_2.long_name = "top altitude of thermal 2"
+    thermal_top_2[:] = np.where(thtop2[:numt] == BAD, np.nan, thtop2[:numt])
+
+    thermal_base_2 = env_nc.createVariable("thermal_base_2", "f4", ("time",), fill_value=np.nan)
+    thermal_base_2.units = "km"
+    thermal_base_2.long_name = "base altitude of thermal 2"
+    thermal_base_2[:] = np.where(thbase2[:numt] == BAD, np.nan, thbase2[:numt])
+
+    cloud_top = env_nc.createVariable("cloud_top", "f4", ("time",), fill_value=np.nan)
+    cloud_top.units = "km"
+    cloud_top.long_name = "cloud top altitude"
+    cloud_top[:] = np.where(cldtop[:numt] == BAD, np.nan, cldtop[:numt])
+
+    debris_base = env_nc.createVariable("debris_base", "f4", ("time",), fill_value=np.nan)
+    debris_base.units = "km"
+    debris_base.long_name = "base altitude of descending cloud-top debris"
+    debris_base[:] = np.where(downbase[:numt] == BAD, np.nan, downbase[:numt])
+
+    ##### deal with ice particle variables #############
+    ice_nc = nc.createGroup("ice_particles")
+
+    diameter_var = ice_nc.createVariable("diameter", "f4", ("particle", "time"), fill_value=np.nan)
+    diameter_var.units = "m"
+    diameter_var.long_name = "graupel particle diameter"
+    diameter_var[:] = particle_diameter
+
+    density_var = ice_nc.createVariable("density", "f4", ("particle", "time"), fill_value=np.nan)
+    density_var.units = "kg m-3"
+    density_var.long_name = "graupel particle bulk density"
+    density_var[:] = particle_density
+
+    mass_var = ice_nc.createVariable("mass", "f4", ("particle", "time"), fill_value=np.nan)
+    mass_var.units = "kg"
+    mass_var.long_name = "graupel particle mass"
+    mass_var[:] = particle_mass
+
+    surface_temperature_var = ice_nc.createVariable("surface_temperature", "f4", ("particle", "time"), fill_value=np.nan)
+    surface_temperature_var.units = "K"
+    surface_temperature_var.long_name = "graupel particle surface temperature"
+    surface_temperature_var[:] = particle_surface_temperature
+
+    terminal_velocity_var = ice_nc.createVariable("terminal_velocity", "f4", ("particle", "time"), fill_value=np.nan)
+    terminal_velocity_var.units = "m s-1"
+    terminal_velocity_var.long_name = "graupel particle terminal velocity"
+    terminal_velocity_var[:] = particle_terminal_velocity
+
+    altitude_var = ice_nc.createVariable("altitude", "f4", ("particle", "time"), fill_value=np.nan)
+    altitude_var.units = "km"
+    altitude_var.long_name = "graupel particle altitude"
+    altitude_var[:] = particle_altitude
+
+    horizontal_position_var = ice_nc.createVariable("horizontal_position", "f4", ("particle", "time"), fill_value=np.nan)
+    horizontal_position_var.units = "km"
+    horizontal_position_var.long_name = "graupel particle horizontal position"
+    horizontal_position_var[:] = particle_horizontal_position
+
+
+    nc.close()
+    ## + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
+
+    
 #~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
 
-
+'''
 def plot_results():
     """
     Re-creates each of the original plotting blocks using matplotlib, since
@@ -1379,30 +1549,7 @@ def plot_results():
 
     # 10) particle size distributions with height (5 - 8.5 km) at a chosen time,
     #     laid out as a 2-row x 4-column grid of small panels
-#    c1_ = 1. / 7.
-#    for jj in range(MAX1):
-#        wid_ = diam[jj] if jj == 0 else diam[jj] - diam[jj - 1]
-#        spec[jj] = conc[jj] / wid_
-
-#    fig, axes_grid = plt.subplots(2, 4, figsize=(14, 7), sharex=True, sharey=True)
-#    for kr in range(2):
-#        for kc in range(4):
-#            ax = axes_grid[kr][kc]
-#            nw = kr * 4 + kc
-#            k = 4 + nw + 1  # matches C's `k = 4 + nw` with nw starting at 1
-#            diamh_slice = diamh[k, :, numt - 5]
-#            valid = diamh_slice < 99999.
-#            diamx_ = np.where(valid, diamh_slice / 6., np.nan)
-#            specy_ = np.where(valid, np.log10(np.where(spec > 0, spec, np.nan)) / 7. + c1_, np.nan)
-#            ax.plot(diamx_, specy_, "o-", markersize=3)
-#            ax.set_title(f"{zgrid[k]:4.1f} km", fontsize=8)
-#    fig.suptitle("x-axis: 0 - 5 mm; y-axis: 0.1 - 10^6 m^-3 mm^-1")
-#    add_footer(fig)
-#    fig.tight_layout()
-
-#    plt.show()
-#~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
-
+'''
 
 if __name__ == "__main__":
     main()
