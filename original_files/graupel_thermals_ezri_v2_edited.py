@@ -59,6 +59,8 @@ from datetime import datetime
 
 import numpy as np
 import matplotlib.pyplot as plt
+import os # file saving 
+
 
 # ---------------------------------------------------------------------------
 # #define constants
@@ -1169,6 +1171,9 @@ def plot_results():
     Each figure below corresponds to one "window(...)/gpause()/gclear()"
     block in the C source, in the same order, and plots the same data.
     """
+
+    plot_save_loc = "./model_output_v2_og/" # location to save output files
+    os.makedirs(plot_save_loc, exist_ok=True) # if make folder, if already exist, do nothing
     realdate = datetime.now().strftime("%H:%M:%S %a %d %b %Y")
     lab1_ = f"{pname}: {realdate}"
     lab2_ = f"zi = {zinit / 1000.:4.1f} km, TDEPTH = {TDEPTH:3.1f} km"
@@ -1230,7 +1235,7 @@ def plot_results():
     ax.legend(fontsize=7)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/thermals_particles.png')
+    plt.savefig(f'{plot_save_loc}thermals_particles.png')
     #plt.show()
 
     # 2) particle size distribution at requested level
@@ -1250,7 +1255,7 @@ def plot_results():
     ax.set_title(f"Spectrum at {level:4.1f} km")
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/psd.png')
+    plt.savefig(f'{plot_save_loc}psd.png')
     #plt.show()
 
     # 3) vertical velocity of thermals with height
@@ -1267,7 +1272,7 @@ def plot_results():
     ax.set_ylim(3., 9.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/vv_alt.png')
+    plt.savefig(f'{plot_save_loc}vv_alt.png')
     #plt.show()
 
     # 4) trajectories of particles
@@ -1303,7 +1308,7 @@ def plot_results():
     ax.set_ylim(3., 9.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/diamp_zp.png')
+    plt.savefig(f'{plot_save_loc}diamp_zp.png')
     #plt.show()
 
     # 6) terminal velocity of particles vs height
@@ -1317,7 +1322,7 @@ def plot_results():
     ax.set_ylim(3., 15.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/vt_z.png')
+    plt.savefig(f'{plot_save_loc}vt_z.png')
     #plt.show()
 
     # 7) diameter of particles vs time
@@ -1338,7 +1343,7 @@ def plot_results():
     ax.set_ylim(0., 10.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/graupel_diam_time.png')
+    plt.savefig(f'{plot_save_loc}graupel_diam_time.png')
     #plt.show()
 
     # 8) reflectivity vs time and height (filled contour)
@@ -1370,7 +1375,7 @@ def plot_results():
     ax.set_ylim(0., 1.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/density_diam.png')
+    plt.savefig(f'{plot_save_loc}density_diam.png')
     #plt.show()
 
     # 10) particle size distributions with height (5 - 8.5 km) at a chosen time,

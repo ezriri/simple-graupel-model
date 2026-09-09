@@ -125,7 +125,7 @@ BAD = np.nan
 # main(), graupel(), drag(), tsurf())
 # ---------------------------------------------------------------------------
 # the whole environment is initialised with empty arrays defined by MAX values
-lw = np.zeros(MAX2)                              # LWC ??
+lw = np.zeros(MAX2)                              # LWC (at all heights)
 db = np.zeros(MAX2)                              # dbar ??
 vv = np.zeros(MAX2)                              # vertical velocity
 alt = np.zeros(MAX2)                             # altitude (m?)
@@ -155,7 +155,7 @@ downbase = np.zeros(MAX3)                        # bottom of cloud top debris
 wtht1 = wthb1 = wtht2 = wthb2 = 0.0              # velocity of top and bottom of thermals
 rad = 0.0                                        # radius of graupel particles
 wi = 0.0                                         # updraft (environmental air velocity) (m/s)
-lwc = 0.0                                        # LWC ?? why lwc defined twice
+lwc = 0.0                                        # LWC - but selecting from lw at a specific height
 rhoa = 0.0                                       # density of air (kg/m^3?)
 reft = np.zeros(MAX3)                            # reflectivity with time
 refg = np.zeros((MAX3, MAX4))                    # reflectivity with time and height
@@ -483,7 +483,7 @@ def graupel(j):
     # initial environment values - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     pres = ps[pos] * 100. # pressure in Pa
     temp = tr[pos] # temperature in K
-    lwc = lw[pos] # liquid water content in g/m^3
+    lwc = lw[pos] # liquid water content in g/m^3 (this is from trev())
     dbar = db[pos] # cloud drop diameter ?? atmospheric pressure?
     timep[j][0] = 0. # time in seconds 
     zp[j][0] = z / 1000. # altitude in km
@@ -509,7 +509,7 @@ def graupel(j):
     particle_diameter[j, 0] = rad * 2
     particle_density[j, 0] = rhog
     particle_mass[j, 0] = mass
-    particle_altitude[j, 0] = z / 1000.
+    particle_altitude[j, 0] = z #/ 1000.
     particle_horizontal_position[j, 0] = 0.
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -542,6 +542,7 @@ def graupel(j):
     # time-step growth loop - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # this is the main part, go through each time step and calculate growth of graupel particle
     for i in range(1, numt):
+    #for i in range(1, MAX3):
 
         # 1. calculate drag for particle * * * * * * * * * * * * * * * * * *
         cd = drag(rad, rhog, rhoa)
@@ -577,7 +578,7 @@ def graupel(j):
         # need to know surface temp
         # On first round, use temp + 2.4 for surface temp (not sure why ??)
         if i == 1:
-            ts = temp + 2.4 # reference ?
+            ts = temp + 2.4 # reference ? - written in a paper
 
         # dm for diffusion - only for Diameter < 300 um ?? - i think this bit is a bit weird
         if dmm <= 0.30:
@@ -680,38 +681,33 @@ def graupel(j):
                         if 0.4 <= ns <= 10.:
                             vimp = (0.1701 + 0.7246 * w + 0.2257 * w2 - 1.13 * w3
                                     + 0.5756 * w4)
-                        elif ns < 0.4:
+                        if ns < 0.4:
                             vimp = 0
-                        #if ns > 10.0:
-                        else:
+                        if ns > 10.0:
                             vimp = 0.57
-                    elif 20. < nre <= 65.:
+                    if 20. < nre <= 65.:
                         if 0.2 <= ns <= 10.:
                             vimp = (0.2927 + 0.5085 * w - 0.03453 * w2 - 0.2184 * w3
                                     + 0.03595 * w4)
-                        elif ns < 0.2:
+                        if ns < 0.2:
                             vimp = 0.0
-                        #if ns > 10.0:
-                        else:
+                        if ns > 10.0:
                             vimp = 0.59
-                    elif 65. < nre <= 200.:
+                    if 65. < nre <= 200.:
                         if 0.2 <= ns <= 10.0:
                             vimp = (0.3272 + 0.4907 * w - 0.09452 * w2 - 0.1906 * w3
                                     + 0.07105 * w4)
-                        elif ns < 0.2:
+                        if ns < 0.2:
                             vimp = 0.0
-                        #if ns > 10.0:
-                        else:
+                        if ns > 10.0:
                             vimp = 0.61
-                    #if nre > 200.:
-                    else:
+                    if nre > 200.:
                         if 0.2 <= ns <= 10.0:
                             vimp = (0.356 + 0.4738 * w - 0.1233 * w2 - 0.1618 * w3
                                     + 0.08087 * w4)
-                        elif ns < 0.2:
+                        if ns < 0.2:
                             vimp = 0.0
-                        #if ns > 10.0:
-                        else:
+                        if ns > 10.0:
                             vimp = 0.63
                     vimp = vimp * vt # this is the impact velocity 
 
@@ -892,6 +888,14 @@ def graupel(j):
         zp[j][i] = zkm # altitude in km
         vtp[j][i - 1] = vt # teminal velocity of particle in m/s
 
+        ## save again for netcdf
+        particle_diameter[j, i] = rad * 2
+        particle_density[j, i] = rhog
+        particle_mass[j, i] = mass
+        particle_surface_temperature[j, i] = ts
+        particle_terminal_velocity[j, i] = vt
+        particle_altitude[j, i] = z # m 
+        particle_horizontal_position[j, i] = xp[j][i]
         # 11. decision if to continue to next time step * * * * * * * * * * * * * * * * * * * * * * * * * *
         # if time > run_time, env temp is warmer than 0, or z < zbase, then break
         if ptime > runtime or temp > 273.15 or z <= zbase:
@@ -902,19 +906,11 @@ def graupel(j):
 
         indx += 1
 
-        ## save again for netcdf
-        particle_diameter[j, i] = rad * 2
-        particle_density[j, i] = rhog
-        particle_mass[j, i] = mass
-        particle_surface_temperature[j, i] = ts
-        particle_terminal_velocity[j, i] = vt
-        particle_altitude[j, i] = zkm
-        particle_horizontal_position[j, i] = xp[j][i]
 
     # end of time-step growth loop - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # i dont think this else statement needed?? no if to match it
-    #else:
-    #    num[j] = indx - 1
+    else:
+        num[j] = indx - 1
 
     return 
 #~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
@@ -937,6 +933,8 @@ def main():
     global c1, xmax, nxtick
     global particle_diameter, particle_density, particle_mass, particle_surface_temperature
     global particle_terminal_velocity, particle_altitude, particle_horizontal_position, particle_vertical_position
+    global save_loc
+    global time, alt
     
 
 
@@ -964,7 +962,8 @@ def main():
     numt = int(runtime * 60. / DELTIM) ### number of simulation time steps (s)
     time = np.zeros(numt) # empty time array
     time[:] = np.arange(numt) * DELTIM # time array
-    alt = np.zeros(MAX2)
+    #alt = np.zeros(MAX2)
+    time = np.zeros(numt)
     alt[:] = np.arange(MAX2) * 10. # height array
 
     """ for saving ice particle properties """
@@ -1011,6 +1010,8 @@ def main():
     for ii in range(MAX2):
         # create atmosphere environment at every height
         # then at each level, define atmospheric properties
+        alt[ii] = 10. * ii # each level seperated by 10 m
+
         if alt[ii] >= zbase:
             ps[ii] = ztp(alt[ii]) # pressure
             at_, alwc_ = trev(pbase, tbase, ps[ii]) # temp + LWC
@@ -1205,7 +1206,7 @@ def main():
                 concl[jj] = conc[jj] # initial conc of particle size
                 diaml[jj] = diamp[jj][i] # grown diameter at requested level
 
-    #plot_results()
+    plot_results()
     ## making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
     fname = os.path.join(save_loc, f"{save_name}.nc")
     nc = Dataset(fname, "w", format="NETCDF4")
@@ -1318,7 +1319,7 @@ def main():
     terminal_velocity_var[:] = particle_terminal_velocity
 
     altitude_var = ice_nc.createVariable("altitude", "f4", ("particle", "time"), fill_value=np.nan)
-    altitude_var.units = "km"
+    altitude_var.units = "m"
     altitude_var.long_name = "graupel particle altitude"
     altitude_var[:] = particle_altitude
 
@@ -1334,7 +1335,6 @@ def main():
     
 #~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
 
-'''
 def plot_results():
     """
     Re-creates each of the original plotting blocks using matplotlib, since
@@ -1404,7 +1404,7 @@ def plot_results():
     ax.legend(fontsize=7)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/thermals_particles.png')
+    plt.savefig(f'{save_loc}thermals_particles.png')
     #plt.show()
 
     # 2) particle size distribution at requested level
@@ -1424,7 +1424,7 @@ def plot_results():
     ax.set_title(f"Spectrum at {level:4.1f} km")
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/psd.png')
+    plt.savefig(f'{save_loc}psd.png')
     #plt.show()
 
     # 3) vertical velocity of thermals with height
@@ -1441,7 +1441,7 @@ def plot_results():
     ax.set_ylim(3., 9.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/vv_alt.png')
+    plt.savefig(f'{save_loc}vv_alt.png')
     #plt.show()
 
     # 4) trajectories of particles
@@ -1477,7 +1477,7 @@ def plot_results():
     ax.set_ylim(3., 9.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/diamp_zp.png')
+    plt.savefig(f'{save_loc}diamp_zp.png')
     #plt.show()
 
     # 6) terminal velocity of particles vs height
@@ -1491,7 +1491,7 @@ def plot_results():
     ax.set_ylim(3., 15.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/vt_z.png')
+    plt.savefig(f'{save_loc}vt_z.png')
     #plt.show()
 
     # 7) diameter of particles vs time
@@ -1512,7 +1512,7 @@ def plot_results():
     ax.set_ylim(0., 10.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/graupel_diam_time.png')
+    plt.savefig(f'{save_loc}graupel_diam_time.png')
     #plt.show()
 
     # 8) reflectivity vs time and height (filled contour)
@@ -1544,12 +1544,11 @@ def plot_results():
     ax.set_ylim(0., 1.)
     add_footer(fig)
     fig.tight_layout()
-    plt.savefig('/Users/ezri/code/alan_model/density_diam.png')
+    plt.savefig(f'{save_loc}density_diam.png')
     #plt.show()
 
     # 10) particle size distributions with height (5 - 8.5 km) at a chosen time,
     #     laid out as a 2-row x 4-column grid of small panels
-'''
 
 if __name__ == "__main__":
     main()
