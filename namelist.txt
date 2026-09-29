@@ -1,0 +1,7 @@
+
+
+
+
+cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
+cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
+

@@ -82,7 +82,7 @@ RATDEB = 0.05
 RATDOWN = 0.05
 WCTDEB = -3. # debris collapse speed (m/s) ??
 CTOP = 8. # cloud top (km)
-TDEPTH = 2. # thermal depth (km)
+TDEPTH = 2. # initial thermal depth (km)
 TGAP = 1. # gap between thermals - bottom of thermal 1 and top of thermal 2 (km) ?
 TWID = 2. # thermal width (km) ? 
 DOWN = 0.4
@@ -492,7 +492,8 @@ def graupel(j):
     rhoa = pres / (RD * temp)
     # kinematic viscosity (not used)
     nu = ETA / rhoa
-    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # vwvm;vjwqpvje-  jbkhjb 
    
     # creating graupel particle! - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # initial radius, diameter, density and mass of particle

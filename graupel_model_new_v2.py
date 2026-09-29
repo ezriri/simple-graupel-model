@@ -111,10 +111,11 @@ WCTDEB = -2.        # w in descending cloud top region
 UFACT = 1.0         # mult factor for umax
 DDEPTH = 1.0        # depth that downdraught descends
 CTOP = 11.0         # altitude of maximum cloud top
-TDEPTH = 3.0        # depth of thermal
+TDEPTH = 3.0        # initial depth of thermal
 TGAP = 2.0          # vertical distance between thermals
 TWID = TDEPTH       # width of thermal incl downdraught
 DOWN = 0.4          # width of downdraught
+# TWID = TWID - (DOWN * 2) # this would be accurate if wanted to change downdraft width?
 UMAX = 2. # max updraft (m/s) ??
 ZCT = TDEPTH / 20.  # depth of overall cloud top region
 ZCT1 = ZCT / 2.     # depth of cloud top region 1
@@ -191,10 +192,10 @@ rhop = np.zeros((MAX6, MAX8))                    # density of particle
 zp = np.zeros((MAX6, MAX8))                      # altitude of each size
 zptop = np.zeros((MAX1, MAX3))                   # rel to ground and cloud top
 xp = np.zeros((MAX6, MAX8))                      # pos of particle relative to centre of thermal
-stime = np.zeros(MAX5)
-xhm = np.zeros(MAX5)
-zhm = np.zeros(MAX5)
-nhm = np.zeros(MAX5)
+stime = np.zeros(MAX5) # splinter time?
+xhm = np.zeros(MAX5) # splinter position (horizontal)
+zhm = np.zeros(MAX5) # splinter position (vertical)
+nhm = np.zeros(MAX5) # number of splinters in each group
 
 ''' multiple thermals defined '''
 thtop1 = np.zeros(MAX3)                          # top alt of thermal 1
@@ -556,12 +557,28 @@ def graupel():
     j is a reference loc for all variables
     
     ! there is a lot happening in this function !
-    
     2 sub loops in this function:
-    1. loop through each time step
-        2. loop through cloud drop size spectrum (24 channels)
+    loop through each time step
+        loop through cloud drop size spectrum (24 channels) - for riming
+    I have broken it up into 11 sections - seperating out specific processes
 
-    I have broken it up into 11 sections - seperating out specific processes     
+    ** going through each time step, the following is calculated **
+    1. starting altitude of particle (in environment)
+    2. where is the particle with respect to the thermal (updraft / downdraught)
+    3. calculate drag and terminal velocity for the particle
+    4. calculate rate of diffusional growth of ice crystals
+    5. calculate vapour pressure
+    6. calculate rimming ** looping through cloud drop size spectrum 6.1-6.3 **
+        6.1 Collection kernel calculation - for each channel
+        6.2 Impact velocity of cloud drops calculation
+        6.3 Density of newly formed rime calculation
+        6.4 Surface temperature calculation
+        6.5 Fraction of unfrozen water shed
+    7. calculate change in radius of graupel particle (from mass / diffusional growth)
+    8. changes in mass and bulk density
+    9. Hallett-Mossop time
+    10. Move the particle
+
     """
     global j, hm, hmrime, rad, wi, lwc, rhoa, es, esi, nre, nsh, nnu
     global num # store number of time points for plotting
@@ -630,7 +647,7 @@ def graupel():
     # this is the main part, go through each time step and calculate growth of particle
     
     for i in range(istart, numt):
-        ### 1. starting altitude of  particle (in environment) - - - - - - - - - - - - - - 
+        ### 1. starting altitude of particle (in environment) - - - - - - - - - - - - - - 
         if one == 0:
             # first round - get initial conditions
             if splinter > 0: # if particle is a splinter particle, get initial conditions from the graupel particle that created it
@@ -763,10 +780,16 @@ def graupel():
             # by diffusion
             dr300 = 2.0e-6
 
-        # 3. calculate drag for particle * * * * * * * * * * * * * * * * * *
+            ### !!! save the initial values !!!
+            #particle_diameter[j, 0] = rad * 2
+            #particle_density[j, 0] = rhog
+            #particle_mass[j, 0] = mass
+            #particle_altitude[j, 0] = z #/ 1000.
+            #particle_horizontal_position[j, 0] = 0.
+
+        # 3. calculate drag and terminal velocity for the particle * * * * * * * * * * * * * * * * * *
         cd = drag(rad, rhog, rhoa)
 
-        # 2. calculate terminal velocity * * * * * * * * * * * * * * * * * *
         # terminal velocity is taken as a function of temperature according
         # to the graph of Fukuta et al. 1982, Chicago conference.
         # If initial diam is greater than 200 um, go straight to vt for graupel
@@ -796,7 +819,7 @@ def graupel():
         # need to know surface temp
         # On first round, use temp + 2.4 for surface temp (not sure why ??)
         if one == 0:
-            one = 1
+            one = 1 # so next time step, use main growth loop
             ts = temp + 2.4
 
         # dm for diffusion only for Diameter < 300 um
@@ -896,32 +919,28 @@ def graupel():
                     w4 = w ** 4
                     if nre <= 20.:
                         if 0.4 <= ns <= 10.:
-                            vimp = (0.1701 + 0.7246 * w + 0.2257 * w2 - 1.13 * w3
-                                    + 0.5756 * w4)
+                            vimp = (0.1701 + 0.7246 * w + 0.2257 * w2 - 1.13 * w3 + 0.5756 * w4)
                         if ns < 0.4:
                             vimp = 0
                         if ns > 10.0:
                             vimp = 0.57
                     if 20. < nre <= 65.:
                         if 0.2 <= ns <= 10.:
-                            vimp = (0.2927 + 0.5085 * w - 0.03453 * w2 - 0.2184 * w3
-                                    + 0.03595 * w4)
+                            vimp = (0.2927 + 0.5085 * w - 0.03453 * w2 - 0.2184 * w3 + 0.03595 * w4)
                         if ns < 0.2:
                             vimp = 0.0
                         if ns > 10.0:
                             vimp = 0.59
                     if 65. < nre <= 200.:
                         if 0.2 <= ns <= 10.0:
-                            vimp = (0.3272 + 0.4907 * w - 0.09452 * w2 - 0.1906 * w3
-                                    + 0.07105 * w4)
+                            vimp = (0.3272 + 0.4907 * w - 0.09452 * w2 - 0.1906 * w3 + 0.07105 * w4)
                         if ns < 0.2:
                             vimp = 0.0
                         if ns > 10.0:
                             vimp = 0.61
                     if nre > 200.:
                         if 0.2 <= ns <= 10.0:
-                            vimp = (0.356 + 0.4738 * w - 0.1233 * w2 - 0.1618 * w3
-                                    + 0.08087 * w4)
+                            vimp = (0.356 + 0.4738 * w - 0.1233 * w2 - 0.1618 * w3 + 0.08087 * w4)
                         if ns < 0.2:
                             vimp = 0.0
                         if ns > 10.0:
@@ -937,8 +956,7 @@ def graupel():
                     if tsc <= -5. or arg >= -1.6:
                         rhor = 0.30 * arg ** 0.44
                     else:
-                        rhor = math.exp(-0.03115 - 1.7030 * arg + 0.9116 * arg2
-                                         - 0.1224 * arg3)
+                        rhor = math.exp(-0.03115 - 1.7030 * arg + 0.9116 * arg2 - 0.1224 * arg3)
                     # rhor -> density of new rime
                     sumrh = rhor * yi + sumrh ## total rime (from contribution of all droplet channels) - accumulates through loop
                 # End: loop through 24 channels of droplet spectrum + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +
@@ -1012,14 +1030,11 @@ def graupel():
             rhog = 900.
 
         # 9. Hallett-Mossop time * * * * * * * * * * * * * * * * * * * * * * * * * *
-        # particle in one of the Hallett-Mossop zones? Store x,z position,
-        # start splinter with a diameter of 20 um, give splinter a number,
-        # and calculate the concentration of splinters produced. Note, only
-        # one calculation per zone; zhm is calculated to be at the centre of
-        # the zone. Assume temp is close to the temp at the top of the
-        # sub-zone and calculate the mid-point using the current altitude
-        # and 6.7 deg -> 1 km. The value of i (which gives the time) is
-        # stored for each new splinter group.
+        # particle in one of the Hallett-Mossop zones? Store x,z position, start splinter with a diameter of 20 um, give splinter a number, and calculate the concentration of splinters produced.
+        # Note, only one calculation per zone; zhm is calculated to be at the centre of the zone. Assume temp is close to the temp at the top of the
+        # sub-zone and calculate the mid-point using the current altitude and 6.7 deg -> 1 km. The value of i (which gives the time) is stored for each new splinter group.
+        
+        # if hmflag == 0 -> no splinter production
 
         if hmflag == 1: #HM flag is switched on 
             if rad * 2e3 >= 0.3 and tempc >= -9.:
@@ -1165,7 +1180,25 @@ def graupel():
 def main():
     """
     executing graupel function and other stuff - again lots of steps
-
+    outlined below:
+        1. initial arguments to set up the run
+        2. set up saving variables
+        3. set up particle properties
+            3a. initialise arrays and variables
+            3b. create initial particle size distribution (spectrum)
+            3c. define cloud properties: pressure / temperature / depth /vertical velocity profile
+        4. set up environmental profile
+        5. set up thermals
+            5a. setting up first thermal
+            5b. setting up second thermal
+            5c. find environmental grid location of the thermals
+            5d. simulate thermals through time
+        6. growing all particles in graupel function
+            6a. grow graupel particles in graupel()
+            6b. grow HM splinter particles in graupel()
+            6c. total number of h-m particles produced versus time / number of ice
+        7. making netcdf!
+        
     ! grow and develop all thermals through time - this is recorded, then passed to graupel !
     """
 
@@ -1185,8 +1218,7 @@ def main():
     global save_loc
     global time, alt
     
-
-
+    # 1. initial arguments to set up the run
     # check command line arguments - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     pname = sys.argv[0] # python script name
     args = sys.argv[1:]
@@ -1199,14 +1231,16 @@ def main():
               f"run_time (min) ", file=sys.stderr)
         sys.exit(0)
 
+
     zinit = 1000. * float(args[0]) # initial height of particle (m)
     maxup = float(args[1]) # maximum updraft velocity (m/s)
     wbase = float(args[2]) # updraft velocity at cloud base (m/s)
     zmax = float(args[3]) # height of maximum updraft (km)
     runtime = float(args[4]) # simulation run time (min)
 
+    # 2. set up saving variables
     ## save tings babe! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-    save_loc = "./model_output/" # location to save output files
+    save_loc = "./model_output_v2/" # location to save output files
     os.makedirs(save_loc, exist_ok=True) # if make folder, if already exist, do nothing
     save_name = 'test_output'
     # setting up time and height for model environment
@@ -1227,9 +1261,9 @@ def main():
     particle_horizontal_position = np.full((MAX1, numt), np.nan)
     particle_vertical_position = np.full((MAX1, numt), np.nan)
     ## save tings babe! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-
     
-    # initialise arrays and variables - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 3. set up particle properties
+    # 3a. initialise arrays and variables - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # umax from continuity
     umax = UFACT * maxup / 2. # calculate horizontal wind
 
@@ -1242,7 +1276,7 @@ def main():
     tothm[:] = 0. # total number of splinters produced in each time step
     #nhm[:] = 0. # number of splinters produced in each HM zone
 
-    # create initial particle size distribution (spectrum) - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 3b. create initial particle size distribution (spectrum) - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     totnum = 0
     for jj in range(MAX1):
         radi[jj] = diam[jj] / 2.
@@ -1254,7 +1288,7 @@ def main():
         totnum += conc[jj] # total intitial particle concentration (m-3)
     
 
-    # define cloud properties: pressure / temperature / depth /vertical velocity profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 3c. define cloud properties: pressure / temperature / depth /vertical velocity profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     pbase = PBASE # pressure at cloud base (mb)
     tbase = TBASE # temperature at cloud base (ºC)
     zbase = ptz(pbase) # height of cloud base (m)
@@ -1265,13 +1299,14 @@ def main():
     slope = (maxup - wbase) / (zmax - zbase / 1000.)
     intcpt = wbase - slope * zbase / 1000.
 
+    # 4. set up environmental profile
     # build environment profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     for ii in range(MAX2):
         ps[ii] = pbase - ii / 2.
         alt[ii] = ptz(ps[ii]) # height (m)
         at_, alwc_ = trev(pbase, tbase, ps[ii]) # temp + LWC
-        lw[ii] = alwc_ * 1.0e-3
-        tr[ii] = at_ + 273.15
+        lw[ii] = alwc_ * 1.0e-3 # lwc through column
+        tr[ii] = at_ + 273.15 # temp through column
         db[ii] = DBAR + ii / 125. # mean cloud drop diameter
 
         # environmental updraft
@@ -1292,7 +1327,8 @@ def main():
     numt = 1 + int(runtime * 60. / DELTIM)
     print(f"numt = {numt}", file=sys.stderr)
 
-    # setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 5. set up thermals
+    # 5a. setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # initial positions of thermals
     thtop1[0] = zinit / 1000. + 0.0 # top of thermal initally at the particles initial height
     cldtop[0] = thtop1[0] # cloud top = thermal top
@@ -1303,7 +1339,7 @@ def main():
     if thbase1[0] < 0.:
         thbase1[0] = 0. # base of thermal cannot be below ground
 
-    # setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 5b. setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     thtop2[0] = thbase1[0] - TGAP # set second thermal below first thermal by TGAP
     if thtop2[0] < 0.:
         thtop2[0] = 0. # top of second thermal cannot be below ground
@@ -1312,7 +1348,7 @@ def main():
         thbase2[0] = 0. # base of second thermal cannot be below ground
     downbase[0] = BAD  # bottom of cloud top debris
 
-    # find environmental grid location of the thermals - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 5c. find environmental grid location of the thermals - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     post1 = posb1 = post2 = posb2 = 0 
     for ii in range(MAX2):
         # find grid locations for thermals
@@ -1331,7 +1367,7 @@ def main():
     wtht2 = vv[post2] / 2.
     wthb2 = vv[posb2] / 2.
 
-    # simulate thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 5d. simulate thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # positions of thermals (in km) with time
     topflag = thb1flag = tht2flag = thb2flag = 0
 
@@ -1417,10 +1453,12 @@ def main():
         wthb2 = vv[posb2] / 2.
     # end of simulating thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    # growing all particles in graupel function - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # 6. growing all particles in graupel function - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # using pre-defined evolution of thermals
     # Note particles produced in the H-M zones in graupel() are splinters.
     # Their growth is dealt with after the initial set of trajectories, by number.
+
+    # 6a. grow graupel particles in graupel()
     wi = 0. # updraft m/s
     hm = 0
     hmj = 0
@@ -1429,22 +1467,23 @@ def main():
     for jj in range(MAX1):
         j = jj # j = current particle index
         graupel()
+        # then save each particle iteration
 
+    # 6b. grow HM splinter particles in graupel()
     if hmflag == 0:
         hm = 1
 
     if hm > 0:
         splinter = 1
         hmj = 0
-        # NOTE: `hm` can grow inside graupel() (new splinter groups spawn
-        # more splinter groups), so this loop bound is re-checked every
+        # NOTE: `hm` can grow inside graupel() (new splinter groups spawn more splinter groups), so this loop bound is re-checked every
         # iteration, exactly like the C `for (hmj = 0; hmj < hm - 1; hmj++)`.
         while hmj < hm - 1:
             # for every HM splinter group created -> run graupel to simulate growth and movement
             graupel()
-            hmj += 1
+            hmj += 1 # loop through index og 
 
-    # total number of h-m particles produced versus time / number of ice
+    # 6c. total number of h-m particles produced versus time / number of ice
     # pcles present at the beginning - this gives value of f in our paper
     for i in range(numt):
         cumtot[i] = 1
@@ -1455,7 +1494,7 @@ def main():
 
     plot_results()
 
-    ## making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
+    ## 7. making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
     fname = os.path.join(save_loc, f"{save_name}.nc")
     nc = Dataset(fname, "w", format="NETCDF4")
     # dimensions - - - - - -
