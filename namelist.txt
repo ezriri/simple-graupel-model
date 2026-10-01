@@ -1,7 +1,62 @@
+# this is the namelist to be parsed to graupel_model_new_v3
+# ** variables ** = ones that are usually changed
 
 
 
 
-cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
-cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
 
+
+## particle properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+## initial particle diameters (mm):
+diam = [.05, .1, .15, .2, .3, .4, .5, .6, .7, .8, .9, 1., 1.1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4]
+zinit = 6500 # ** initial height of particles (m) **
+
+
+
+
+#cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
+#cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
+
+## atmosphere properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+
+
+## thermal properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+maxup = 5 # ** maximum updraft velocity (m/s) **
+zmax = 6.5 # height of maximum updraft (km)
+UFACT = 1.0         # mult factor for umax (max updraft)
+DDEPTH = 1.0        # depth that downdraught descends
+TDEPTH = 3.0        # initial depth of thermal (km)
+TGAP = 2.0          # vertical distance between thermals (km)
+TWID = TDEPTH       # width of thermal incl downdraught
+DOWN = 0.4          # width of downdraught (km)
+# TWID = TWID - (DOWN * 2) # this would be accurate if wanted to change downdraft width?
+#UMAX = 2. # max updraft (m/s) ??
+
+## cloud properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+wbase = 2 # ** updraft velocity at cloud base (m/s) **
+CTOP = 11.0         # altitude of maximum cloud top (km)
+GENCTOP = CTOP - 0.5  # height of general cloud top (km)
+tbase = 10.6        # temperature at cloud base (ºC)
+pbase = 705.        # pressure at cloud base (mb)
+DBAR = 20.          # mean cloud droplet diameter
+ZCT = TDEPTH / 20.  # depth of overall cloud top region
+ZCT1 = ZCT / 2.     # depth of cloud top region 1
+ZCT2 = ZCT / 2.     # depth of cloud top region 2
+#(RAT - ratio of LWC to adiabatic LWC)
+RATTH = 0.7         # L/La in thermal 
+RATCT = 0.3         # L/La in uppermost cloud top region
+RATDEB = 0.1        # L/La in debris
+RATDOWN = 0.1       # L/La in downdraught
+WCTDEB = -2.        # w in descending cloud top region
+
+## HM properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+hmflag = 1 # **** is HM process on? 0 = no // 1 = yes ****
+HMRINIT = 10.0e-6   # initial radius of HM splinter
+HMFACT = 5.0e7      # number splinters produced per kg of rime
+
+## other ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+save_loc = '/home/users/esree/simple-graupel-model/model_output_v3/'
+runtime = 60 # ** simulation run time (min) **
+DELTIM = 5. # time step interval (s)
+MAX2 = 1500        # number of altitude values (will be *10 -> (m) )
