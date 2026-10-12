@@ -86,10 +86,8 @@ from netCDF4 import Dataset # !! new - building netcdf
 import os # file saving 
 
 # ---------------------------------------------------------------------------
-# # model inputs
+# # namelist inputs
 # ---------------------------------------------------------------------------
-# use the namelist ! <3
-#pname = sys.argv[0] # python script name
 namelist_txt = sys.argv[1] # namelist file name
 
 with open(namelist_txt, "r") as f:
@@ -105,13 +103,9 @@ if len(nlsit_split) > 1:
 else:
     save_name = 'ctrl'
 
-
 diam = namelist['diam']
 numt = int(namelist['runtime'] * 60. / namelist['DELTIM']) ### number of simulation time steps (s)
 MAX1 = len(diam)   # number of particle size categories
-#MAX3 = 9000        # number of time steps
-#MAX4 = 24          # number of grid points in vertical
-#MAX6 = 2010        # number of original size categories + H-M splinter groups
 
 # ---------------------------------------------------------------------------
 # #define constants
@@ -148,69 +142,20 @@ tr = np.zeros(namelist['MAX2'])                              # temperature (Kelv
 conc = np.zeros(MAX1)                            # concentration of particles in each size category
 
 radi = [d/2 for d in diam]  #np.zeros(MAX1)      # inital radius
-stime = [] # splinter time?
+stime = [] # time of splinter production
 xhm = [] # splinter position (horizontal)
 zhm = [] # splinter position (vertical)
-nhm = [] # number of splinters in each group
+nhm = [] # number (conc) of splinters in each group for each zone
 hmi = [] # splinter time index for each group
 
-
 ''' multiple thermals defined '''
-thtop1 = np.zeros(numt) #np.zeros(MAX3)                          # top alt of thermal 1
-thbase1 = np.zeros(numt) #np.zeros(MAX3)                         # bottom alt of thermal 1
-thtop2 = np.zeros(numt) #np.zeros(MAX3)                          # top alt of thermal 2
-thbase2 = np.zeros(numt) #np.zeros(MAX3)                         # bottom alt of thermal 2
-cldtop = np.zeros(numt) #np.zeros(MAX3)                          # top of cloud top debis
-downbase = np.zeros(numt) #np.zeros(MAX3)                        # bottom of cloud top debris
+thtop1 = np.zeros(numt)                          # top alt of thermal 1
+thbase1 = np.zeros(numt)                         # bottom alt of thermal 1
+thtop2 = np.zeros(numt)                          # top alt of thermal 2
+thbase2 = np.zeros(numt)                         # bottom alt of thermal 2
+cldtop = np.zeros(numt)                          # top of cloud top debis
+downbase = np.zeros(numt)                        # bottom of cloud top debris
 
-'''
-wtht1 = wthb1 = wtht2 = wthb2 = 0.0              # velocity of top and bottom of thermals
-rad = 0.0                                        # current radius of graupel particles
-wi = 0.0                                         # updraft (environmental air velocity) (m/s)
-lwc = 0.0                                        # LWC - but selecting from lw at a specific height
-rhoa = 0.0                                       # density of air (kg/m^3?)
-zinit = 0.0                                      # starting altitude of ice particles (m)
-cf = 0.0                                         # # used to calculate reflectivity
-pbase = tbase = 0.0                              # pressure (mb) and temp (c) at cloud base
-zbase = cdepth = 0.0                             # alt of cloud base and cloud depth
-time = 0.0                                       # time in minutes
-time_ = 0.0
-at = alwc = 0.0                                  # adiabatic temp and adiabatic LWC
-zgrid = np.zeros(MAX4)                           # vertical grid
-xx = np.zeros(MAX3)                              # d.v. for plotting (dummy variable)
-yy = np.zeros(MAX3)                              # d.v. for plotting
-c1 = 0.0                                         # offset for framing spectra
-specy = np.zeros(MAX1)                           # conc only for valid diameters
-xinit = yinit = 0.0                              # initilisation pts for windows
-x1 = x2 = wy1 = wy2 = 0.0                        # window coordinates (for plotting??)
-maxup = 0.0                                      # max updraft
-wbase = zmax = 0.0                               # updraft at cloud base and max altitude of updraft
-slope = intcpt = 0.0                             # variables to calculate vertical velocity profile
-runtime = 0.0                                    # length of run in (mins)
-es = esi = 0.0                                   # water and ice vapour pressure
-nre = nsh = nnu = 0.0                            # Reynolds, Sherwood and Nusslet no
-xmax = 0.0                                       # maximum value on x-axis
-level = 0.0                                      # level used for spectrum
-totnum = 0.0
-level1 = level2 = level3 = 0.0
-hmrime = 0.0
-zm8 = zm3 = 0.0
-
-numt = 0                                         # number of time points for plotting
-num = np.zeros(MAX6, dtype=int)                  # number of time points for plotting
-hm = 0 # number / index of H-M splinter groups
-hmj = 0 # index of H-M splinter group ?? 
-j = 0                                            # global channel counter
-tt = pp = 0
-nxtick = 0                                       # number of ticks on x-axis
-topflag = tht2flag = thb2flag = 0                # flag set if base of thermal at top
-
-post1 = posb1 = post2 = posb2 = 0                # index for thermal velocities
-splinter = 0
-atlevel1 = atlevel2 = atlevel3 = 0
-totpts = 0
-
-'''
 
 """ 
 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
@@ -523,10 +468,6 @@ def graupel():
     global vtsave, ddsave, drtrans 
     global lwc, rad
 
-    #global delmd 
-    #global delmr
-    #global delrd
-
     # initialise local variables (mainly particle / environment)
     z = x = pres = temp = tempc = dbar = 0.0 # z = vertical position of particle (m)// x = horizontal position of particle (km?) //  pressure (mb) // temp = temperature (K) // tempc = temperature (C) // dbar = mean cloud droplet diameter
     zold = xold = 0.0 # previous position of particle (m, km)
@@ -537,9 +478,6 @@ def graupel():
 
     tflag = 0 # tflag == 0 -> frozen growth // tflag == 1 -> warm growth
     one = 0 # initialisation of particle (0 = first time step, 1 = subsequent time steps)
-    pp_ = 0
-    tt_ = 0
-    #wi = 0.2
     indx = 0
     downflag = 0 # is particle in downdraught? (0 = no - normal / thermal envi, 1 = yes)
     topflag_local = 0
@@ -563,15 +501,6 @@ def graupel():
     time = 0.
     nx = 0.
 
-    # calculate vt and delmr for a 300 um diameter particle
-    # Assume density of 220 g/cm^3 just now as a quick fix - 7/7/94
-    # and use simple formula for kapb
-    #cd = drag(0.15e-3, 220., rhoa) # drag coefficient for 300um (diameter) particle (function uses radius)
-    #vt300 = 8. * 0.15 * 1.0e-3 * 220. * GRAV / (3. * rhoa * cd) # terminal velocity for 300um particle
-    #dmr300 = PI * 0.15e-3 ** 2 * vt300 * lwc * DELTIM # riming mass change for 300um particle
-    #dr300 = dmr300 / (4. * PI * 0.15e-3 ** 2 * 220.) # radius change for 300um particle
-    # these values ^^ are used for smooth transition for riming between 200-300 um diameter particles
-
     ## all the particle variables we are saving
     diameter_s = [] # diameter of particle (m)
     density_s = [] # density of particle (kg/m^3)
@@ -581,7 +510,6 @@ def graupel():
     altitude_s = [] # altitude of particle (m)
     horizontal_position_s = [] # horizontal position of particle (km)
     horizontal_wind_s = [] # horizontal wind (m/s)
-
 
     # are we growing a splinter particle or a graupel particle?
     # splinter == 0 -> graupel particle // splinter == 1 -> splinter particle
@@ -607,7 +535,7 @@ def graupel():
     # this is the main part, go through each time step and calculate growth of particle
     
     for i in range(istart, numt - 1):
-        # we do -1 as we save the initial conditions of the particle
+        # we do -1 as we save the initial conditions of the particle in the first loop
         ### 1. starting altitude of particle (in environment) - - - - - - - - - - - - - - 
         if one == 0:
             # first round - get initial conditions
@@ -636,7 +564,6 @@ def graupel():
 
         # 2. where is the particle with respect to the thermal? * * * * * * * * * * * * * * * * * * * * * * * * * *
         # this modifies the environmental conditions -> alter particle growth and movement
-        
         hw = 0 # horizontal wind (m/s) # not persistent between time steps
         if downflag == 0: # particle is not in downdraft
             if ((zkm <= thtop1[i] - namelist['ZCT'] and zkm >= thbase1[i]) or (zkm <= thtop2[i] - namelist['ZCT'] and zkm >= thbase2[i])):
@@ -733,8 +660,6 @@ def graupel():
             # initial mass
             mass = 4. * PI * rad ** 3 * rhog / 3.
             
-            
-
             # calculate vt and delmr for a 300 um diameter particle
             # Assume density of 100 g/cm^3 just now as a quick fix - 7/7/94
             # and use simple formula for kapb
@@ -746,13 +671,6 @@ def graupel():
             # force dr300 to slightly larger than largest value of dr
             # by diffusion
             dr300 = 2.0e-6
-
-            ### !!! save the initial values !!!
-            #particle_diameter[j, 0] = rad * 2
-            #particle_density[j, 0] = rhog
-            #particle_mass[j, 0] = mass
-            #particle_altitude[j, 0] = z #/ 1000.
-            #particle_horizontal_position[j, 0] = 0.
 
         # 3. calculate drag and terminal velocity for the particle * * * * * * * * * * * * * * * * * *
         cd = drag(rad, rhog, rhoa)
@@ -795,7 +713,6 @@ def graupel():
             terminal_velocity_s.append(vt) # [0] 
             surface_temp_s.append(ts) # [0]
             horizontal_wind_s.append(0) # [0] ? idc
-
 
         # dm for diffusion only for Diameter < 300 um
         if dmm <= 0.30:
@@ -1022,16 +939,12 @@ def graupel():
                     # conc[j] = conc of orginal graupel particles - so if second gen of splinter - still based on inital graupel
                     # HMFACT = HM splinter production factor (0.2) 
                     # hmrime = mass of rime accumulated in this zone
-                    #nhm[hm] = nx  # storing splinter conc for this zone
-                    #xhm[hm] = x # horizontal position of splinter
-                    #zhm[hm] = zkm - 0.5 / 6.7 # vertical position of splinter
-                    #stime[hm] = time # time of splinter production
                     hmi.append(i) # time step of splinter production - for plotting, got rid o
-
                     nhm.append(nx) # store splinter conc for this zone
                     xhm.append(x) # horizontal position of splinter
                     zhm.append(zkm - 0.5 / 6.7) # vertical position of splinter
                     stime.append(time) # time of splinter production
+
                     hm += 1 # increment splinter counter
                     hmrime = 0. # reset acccumulated rime mass for next zone
                     hmzone1 = 0 # reset HM zone 1 flag for next zone
@@ -1150,57 +1063,43 @@ def main():
     """
     executing graupel function and other stuff - again lots of steps
     outlined below:
-        1. initial arguments to set up the run
-        2. set up saving variables
-        3. set up particle properties
-            3a. initialise arrays and variables
-            3b. create initial particle size distribution (spectrum)
-            3c. define cloud properties: pressure / temperature / depth /vertical velocity profile
-        4. set up environmental profile
-        5. set up thermals
-            5a. setting up first thermal
-            5b. setting up second thermal
-            5c. find environmental grid location of the thermals
-            5d. simulate thermals through time
-        6. growing all particles in graupel function
-            6a. grow graupel particles in graupel()
-            6b. grow HM splinter particles in graupel()
-        7. making netcdf!
+        1. set up saving variables
+        2. set up particle properties
+            2a. initialise arrays and variables
+            2b. create initial particle size distribution (spectrum)
+            2c. define cloud properties: pressure / temperature / depth /vertical velocity profile
+        3. set up environmental profile
+        4. set up thermals
+            4a. setting up first thermal
+            4b. setting up second thermal
+            4c. find environmental grid location of the thermals
+            4d. simulate thermals through time
+        5. growing all particles in graupel function
+            5a. grow graupel particles in graupel()
+            5b. grow HM splinter particles in graupel()
+        6. making netcdf!
         
     ! grow and develop all thermals through time - this is recorded, then passed to graupel !
     """
 
     global zbase, cdepth, umax
-    #global wi, 
     global hm, hmj, hmrime, splinter, j
     global thtop1, thbase1, thtop2, thbase2, cldtop, downbase
-    #global wtht1, wthb1, wtht2, wthb2
-    #global topflag, thb1flag, tht2flag, thb2flag, post1, posb1, post2, posb2
-    #global totnum, zm8, zm3
-
-
-    global particle_diameter, particle_density, particle_mass, particle_surface_temperature
-    global particle_terminal_velocity, particle_altitude, particle_horizontal_position, particle_vertical_position
-
     global time, alt
-    
-    # 1. initial arguments to set up the run
-    # check command line arguments - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    # 2. set up saving variables
+    # 1. set up saving variables
     ## save tings babe! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     os.makedirs(namelist['save_loc'], exist_ok=True) # if make folder, if already exist, do nothing
     # setting up time and height for model environment
     time = np.zeros(numt)
     alt[:] = np.arange(namelist['MAX2']) * 10. # height array
-    ## save tings babe! - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     
-    # 3. set up particle properties
-    # 3a. initialise arrays and variables - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 2. set up particle properties
+    # 2a. initialise arrays and variables - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # umax from continuity
     umax = namelist['UFACT'] * namelist['maxup'] / 2. # calculate horizontal wind
 
-    # 3b. create initial particle size distribution (spectrum) - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 2b. create initial particle size distribution (spectrum) - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     #totnum = 0
     for jj in range(MAX1):
         #radi[jj] = diam[jj] / 2. 
@@ -1212,7 +1111,7 @@ def main():
         #totnum += conc[jj] # total intitial particle concentration (m-3)
     
 
-    # 3c. define cloud properties: pressure / temperature / depth /vertical velocity profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 2c. define cloud properties: pressure / temperature / depth /vertical velocity profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
     zbase = ptz(namelist['pbase']) # height of cloud base (m)
     #print(f"cloud base: p = {namelist['pbase']:5.1f} mb, T = {namelist['tbase']:4.1f} C, "f"z = {zbase / 1000.:3.1f} km", file=sys.stderr)
@@ -1222,9 +1121,10 @@ def main():
     slope = (namelist['maxup'] - namelist['wbase']) / (namelist['zmax'] - zbase / 1000.)
     intcpt = namelist['wbase'] - slope * zbase / 1000.
 
-    # 4. set up environmental profile
+    # 3. set up environmental profile
     # build environment profile - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     for ii in range(namelist['MAX2']):
+        # whole column properties
         ps[ii] = namelist['pbase'] - ii / 2.
         alt[ii] = ptz(ps[ii]) # height (m)
         at_, alwc_ = trev(namelist['pbase'], namelist['tbase'], ps[ii]) # temp + LWC
@@ -1247,8 +1147,9 @@ def main():
             vv[ii] = (namelist['maxup'] / ((namelist['CTOP'] + 2.) - namelist['zmax'])) * ((namelist['CTOP'] + 2.) - alt[ii] / 1000.0)
 
 
-    # 5. set up thermals
-    # 5a. setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+    # 4. set up thermals
+    # 4a. setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # initial positions of thermals
     thtop1[0] = namelist['zinit'] / 1000. + 0.0 # top of thermal initally at the particles initial height
     cldtop[0] = thtop1[0] # cloud top = thermal top
@@ -1259,7 +1160,7 @@ def main():
     if thbase1[0] < 0.:
         thbase1[0] = 0. # base of thermal cannot be below ground
 
-    # 5b. setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 4b. setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     thtop2[0] = thbase1[0] - namelist['TGAP'] # set second thermal below first thermal by TGAP
     if thtop2[0] < 0.:
         thtop2[0] = 0. # top of second thermal cannot be below ground
@@ -1268,7 +1169,7 @@ def main():
         thbase2[0] = 0. # base of second thermal cannot be below ground
     downbase[0] = np.nan  # bottom of cloud top debris
 
-    # 5c. find environmental grid location of the thermals - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 4c. find environmental grid location of the thermals - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     post1 = posb1 = post2 = posb2 = 0 
     for ii in range(namelist['MAX2']):
         # find grid locations for thermals
@@ -1287,7 +1188,7 @@ def main():
     wtht2 = vv[post2] / 2.
     wthb2 = vv[posb2] / 2.
 
-    # 5d. simulate thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+    # 4d. simulate thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # positions of thermals (in km) with time
     topflag = thb1flag = tht2flag = thb2flag = 0
 
@@ -1373,12 +1274,12 @@ def main():
         wthb2 = vv[posb2] / 2.
     # end of simulating thermals through time - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-    # 6. growing all particles in graupel function - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+    # 5. growing all particles in graupel function - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # using pre-defined evolution of thermals
     # Note particles produced in the H-M zones in graupel() are splinters.
     # Their growth is dealt with after the initial set of trajectories, by number.
 
-    # 6a. grow graupel particles in graupel()
+    # 5a. grow graupel particles in graupel()
     #wi = 0. # updraft m/s
     hm = 0
     hmj = 0
@@ -1413,7 +1314,7 @@ def main():
         particle_data_t[name] = np.stack(trajectories)
 
     if hm > 0:
-        # 6b. grow HM splinter particles in graupel()
+        # 5b. grow HM splinter particles in graupel()
         splinter_data = {
             "diameter": [],
             "density": [],
@@ -1443,7 +1344,7 @@ def main():
             # this is combining across all time and splinters
             splinter_data_t[name] = np.stack(trajectories)
 
-    ## 7. making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
+    ## 6. making netcdf! + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + 
     fname = os.path.join(namelist['save_loc'], f"{save_name}.nc")
     nc = Dataset(fname, "w", format="NETCDF4")
     # dimensions - - - - - -

@@ -1,26 +1,15 @@
 # this is the namelist to be parsed to graupel_model_new_v3
 # ** variables ** = ones that are usually changed
 
-
-
-
-
-
 ## particle properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 ## initial particle diameters (mm):
 diam = [.05, .1, .15, .2, .3, .4, .5, .6, .7, .8, .9, 1., 1.1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4]
 zinit = 6500 # ** initial height of particles (m) **
 
-
-
-
 #cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
 #cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
 
 ## atmosphere properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
-
-
 ## thermal properties ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 maxup = 5 # ** maximum updraft velocity (m/s) **
 zmax = 6.5 # height of maximum updraft (km)
@@ -56,7 +45,7 @@ HMRINIT = 10.0e-6   # initial radius of HM splinter
 HMFACT = 5.0e7      # number splinters produced per kg of rime
 
 ## other ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-save_loc = '/home/users/esree/simple-graupel-model/model_output_v3/'
+save_loc = '/home/users/esree/simple-graupel-model/model_output_v3_1/'
 runtime = 60 # ** simulation run time (min) **
 DELTIM = 5. # time step interval (s)
 MAX2 = 1500        # number of altitude values (will be *10 -> (m) )
