@@ -1110,7 +1110,7 @@ def find_grid_index(height_km, alt):
 def boundary_velocity(index, vv):
     if index is None:
         return 0.
-    return vv[index] #/ 2.
+    return vv[index] / 2.
 
 
 def main():
@@ -1291,8 +1291,8 @@ def main():
         if topflag == 1:
             # thermal has reached cloud top -> thermal stopped growing, now become region of descending material 
             cldtop[i] = cldtop[i - 1] + (namelist['WCTDEB'] * namelist['DELTIM']) / 1000. # cloud top region grows
-            #if cldtop[i] <= namelist['GENCTOP']:
-            #    cldtop[i] = namelist['GENCTOP']
+            if cldtop[i] <= namelist['GENCTOP']:
+                cldtop[i] = namelist['GENCTOP']
             
             downbase[i] = cldtop[i] - namelist['TDEPTH'] / 4. # base of cloud top region 
             if downbase[i] <= thtop1[i]:

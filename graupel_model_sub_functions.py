@@ -309,4 +309,4 @@ def find_grid_index(height_km, alt):
 def boundary_velocity(index, vv):
     if index is None:
         return 0.
-    return vv[index] #/ 2.
+    return vv[index] / 2.
