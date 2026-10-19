@@ -1224,7 +1224,6 @@ def main():
             # in cloud + alt >= zmax
             # decreasing updraft above this
             vv[ii] = (namelist['maxup'] / ((namelist['CTOP'] + 2.) - namelist['zmax'])) * ((namelist['CTOP'] + 2.) - alt[ii] / 1000.0)
-            #vv[ii] = namelist['maxup'] - (alt[ii] / 1000.0 - namelist['zmax']) * 1.75 # alike to graupel_thermals_ezri.c
 
     # 4. set up thermals -- new(ish)!
     # 4a. setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -1238,8 +1237,7 @@ def main():
         thbase1[0] = 0. # base of thermal cannot be below ground
 
     # setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-    # can another thermal fit below first one? - with thbase1 being at least 3+ TGAP km alt
-    # throp2 is a minimum of 3km in alt
+    # can another thermal fit below first one? - throp2 is a minimum of 3km in alt
     min_alt = zbase/1000 # 3
 
     if thbase1[0] - namelist['TGAP'] >= min_alt: 
