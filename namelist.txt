@@ -33,8 +33,8 @@ pbase = 705.        # pressure at cloud base (mb)
 DBAR = 20.          # mean cloud droplet diameter (um)
 
 ZCT = TDEPTH / 6. # ratio of thermal top / depth of thermal 
-ZCT1 = ZCT / 3.
-ZCT2 = 2. * ZCT / 3.
+#ZCT1 = ZCT / 3.
+#ZCT2 = 2. * ZCT / 3.
 
 #ZCT = TDEPTH / 20.  # depth of overall cloud top region
 #ZCT1 = ZCT / 2.     # depth of cloud top region 1
@@ -55,6 +55,6 @@ HMFACT = 5.0e7      # number splinters produced per kg of rime
 
 ## other ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 save_loc = '/gws/ssde/j25a/dcmex/users/ezriab/graupel_model_output/v3_2/'
-runtime = 100 # ** simulation run time (min) **
+runtime = 60 # ** simulation run time (min) **
 DELTIM = 5. # time step interval (s)
 MAX2 = 1500        # number of altitude values (will be *10 -> (m) )

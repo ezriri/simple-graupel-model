@@ -246,34 +246,32 @@ def trev(pbase_, tbase_, p):
     Returns:
         tuple: Adiabatic temperature (°C) and liquid water content (g/m³).
     """
-    eps = 0.622
     cpd = 1.0042e3
     cw  = 4.218e3
-    rd  = 287.05
     alhv = 2.501e6
 
     tk = tbase_ + 273.15
     e  = vapour(tk)
-    r  = eps * e / (pbase_ - e)
+    r  = EPS * e / (pbase_ - e)
     cpt = cpd + r * cw
-    thetaq = tk * (1000.0 / (pbase_ - e))**(rd / cpt) * math.exp(alhv * r / (cpt * tk))
+    thetaq = tk * (1000.0 / (pbase_ - e))**(RD / cpt) * math.exp(alhv * r / (cpt * tk))
 
     # 1st approximate t
     t1 = tk
     e = vapour(t1)
-    rv = eps * e / (p - e)
-    t1 = thetaq / ((1000.0 / (p - e))**(rd / cpt) * math.exp(alhv * rv / (cpt * t1)))
+    rv = EPS * e / (p - e)
+    t1 = thetaq / ((1000.0 / (p - e))**(RD / cpt) * math.exp(alhv * rv / (cpt * t1)))
 
     # Successive approximations
     for _ in range(10):
         e  = vapour(t1)
-        rv = eps * e / (p - e)
-        t1 = (thetaq / ((1000.0 / (p - e))**(rd / cpt) * math.exp(alhv * rv / (cpt * t1))) + t1) / 2.0
+        rv = EPS * e / (p - e)
+        t1 = (thetaq / ((1000.0 / (p - e))**(RD / cpt) * math.exp(alhv * rv / (cpt * t1))) + t1) / 2.0
     
     t_c = t1 - 273.15
     # LWC from mixing ratio difference
     e  = vapour(t1)
-    rv = eps * e / (p - e)
+    rv = EPS * e / (p - e)
     tw = r - rv  # difference in mixing ratios
     # Convert to g m^-3 (matches trev.c line)
     alwc_gm3 = tw * p * 28.9644 / (8.314e7 * t1) * 1.0e9
