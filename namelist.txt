@@ -7,6 +7,7 @@
 diam = [.05, .1, .2, .3, .4, .5, .6, .7, .8, .9]
 #diam = [.05, .1, .15, .2, .3, .4, .5, .6, .7, .8, .9, 1., 1.1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4]
 zinit = 6500 # ** initial height of particles (m) **
+ttoph = 6500 ## height of first thermal top (m)
 
 #cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
 #cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
