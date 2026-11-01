@@ -35,49 +35,6 @@ precip + icemult -- A wee model to predict the development of precipitation + HM
               of splinter production per mg of rime collected
               (Other approaches will be tried later - 15/8/94.)
            
-TRANSLATION NOTES
------------------
-1. `trev()` (adiabatic temperature/LWC vs pressure) is *declared* in the C
-   source (`float trev();`) and called, but its body is not in this file --
-   it must live in another .c file that wasn't supplied. A stub is provided
-   below; replace it with the real implementation before running.
-
-2. `vapour()` and `gr()` *are* fully defined in this file (unlike the
-   previous graupel-only file you gave me, where they were only declared),
-   so those are translated faithfully below.
-
-3. `scale()` is called once (to pick y-axis limits for the "f vs time"
-   plot) but is not defined in this file -- it's presumably another
-   library routine from the same custom graphics package as `line()`,
-   `axes()`, etc. A simple equivalent (`scale_axis()`) is provided below;
-   it picks integer-rounded min/max bounds from the data, which is
-   consistent with how its result (`nticks = maxy - miny + 1`) is used.
-
-   
-4. `BAD` is a sentinel value used throughout the C code to flag "missing/
-   invalid" data points, but it's a macro from "cdfhdr.h" which was not
-   supplied. Given the code checks `value < 99999.` to decide whether a
-   value is valid, BAD is assumed here to be 999999.0. Adjust
-   `BAD` below if your header defines it differently.
-
-5. The C program draws all its plots using a custom, in-house graphics
-   library (`gopen`, `gclear`, `window`, `axes`, `line`, `label`, `mark`,
-   `conto`, `grid`, `fill`, `gpause`, `gclose`, `xtick`, `ytick`, `badset`).
-   None of these are standard C library calls and their implementations
-   were not supplied (they live in "cdfhdr.h" / a linked graphics library).
-   It is not possible to reproduce their exact visual behaviour, so each
-   plotting block has been translated into an equivalent, clearly-labelled
-   matplotlib figure that plots the same data. The *numerical* content
-   (the environment profiles, thermal tracking, particle growth, and
-   reflectivity calculations) is translated exactly.
-
-6. All C globals shared between functions are kept as Python module-level
-   globals (via `global` statements) to preserve the original data flow --
-   this is particularly important here since `graupel()` is called
-   repeatedly (once per initial particle, then once per Hallett-Mossop
-   splinter group -- and the splinter-group loop itself grows dynamically
-   as `graupel()` spawns new splinter groups, exactly as in the C `for`
-   loop whose bound `hm - 1` is re-evaluated on every iteration).
 """
 
 import sys
@@ -145,6 +102,7 @@ alt = np.zeros(namelist['MAX2'])                             # altitude (m?)
 ps = np.zeros(namelist['MAX2'])                              # pressure (mb?)
 tr = np.zeros(namelist['MAX2'])                              # temperature (Kelvin)
 conc = np.zeros(MAX1)                            # concentration of particles in each size category
+min_alt = 0
 
 radi = [d/2 for d in diam]  #np.zeros(MAX1)      # inital radius
 stime = [] # time of splinter production
@@ -419,6 +377,28 @@ def make_nc_variable(nc_group, data, name, dimensions, units, long_name, data_ty
     return var
 #~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
 
+def vt_small(dmm, tempc):
+    """
+    Terminal velocity (m/s) for small ice particles, dmm in mm.
+    Empirical relationship after Fukuta et al. 1982.
+    
+    Args:
+        dmm (float): Particle diameter in millimeters.
+        tempc (float): Temperature in degrees Celsius.
+    Returns:
+        float: Terminal velocity in meters per second.
+    """
+    if (-6.5 < tempc <= -4.) or (-16 < tempc <= -14.):
+        vt = 100. * (0.395 * dmm - 0.177 * dmm ** 2 + 0.073 * dmm ** 3 - 0.0153 * dmm ** 4)
+    elif (-14. < tempc <= -12.) or (-8 < tempc <= -6.5) or tempc > -4.:
+        vt = 40. * dmm
+    elif -12. < tempc <= -8.:
+        vt = 51. * dmm
+    else:
+        vt = 60. * dmm
+    return vt * 0.01  # cm/s -> m/s
+#~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+
 
 """ 
 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
@@ -460,7 +440,7 @@ def graupel():
 
     """
     global j, hm, nre, nsh, nnu
-    global vtsave, ddsave, drtrans 
+    global drtrans 
     global lwc, rad
 
     # initialise local variables (mainly particle / environment)
@@ -491,7 +471,7 @@ def graupel():
     kapb = None
     rhor = None
     delmr = 0.
-    time = 0.
+    #time = 0.
     nx = 0.
 
     ## all the particle variables we are saving
@@ -530,6 +510,7 @@ def graupel():
     # this is the main part, go through each time step and calculate growth of particle
     
     for i in range(istart, numt):
+
         ### 1. starting altitude of particle (in environment) - - - - - - - - - - - - - - 
         if one == 0:
             # first round - get initial conditions
@@ -568,51 +549,18 @@ def graupel():
         # 2. where is the particle with respect to the thermal? * * * * * * * * * * * * * * * * * * * * * * * * * *
         # this modifies the environmental conditions -> alter particle growth and movement
         hw = 0 # horizontal wind (m/s) # not persistent between time steps
-        #'''
-        if downflag == 0: # particle is not in downdraft
-            ## *** particle is in thermal *** - condition 1 
-            if ((zkm <= thtop1[i] - namelist['ZCT'] and zkm >= thbase1[i]) or (zkm <= thtop2[i] - namelist['ZCT'] and zkm >= thbase2[i])):
-                # particle is still in thermal (can be thermal 1 or thermal 2)
-                temp = tr[pos] - 1. # thermal envi is 1ºC cooler than the environment
-                lwc = namelist['RATTH'] * lw[pos]
-                dbar = db[pos] # drop size
-                wi = vv[pos] # vertical velocity - based on the vertical velocity profile of the thermal
-                hw = 0
+        if downflag == 0:
+            # Check whether thermal 2 exists
+            thermal2_exists = np.isfinite(thtop2[i]) # the base for thermal 2 may not be initalised
+            # nonsense to check if in thermal 1
+            decaying = np.isfinite(downbase[i]) # top of cloud is decaying - thermal below
+            top1 = thtop1[i] if decaying else thtop1[i] - namelist['ZCT'] 
 
-            ## *** particle is in ZCT zone (only region where it can move horizontally) ***
-            # in very top of the cloud -> horizontal wind kicks in -> move particle into downdraft
+            in_thermal1 = (zkm <= top1 and (not np.isfinite(thbase1[i]) or zkm >= thbase1[i]))
+            in_thermal2 = (thermal2_exists and zkm <= thtop2[i] and (not np.isfinite(thbase2[i]) or zkm >= thbase2[i]))
             
-            if zkm <= thtop1[i] and zkm >= thtop1[i] - namelist['ZCT']:
-                temp = tr[pos] - 1.
-                lwc = namelist['RATCT'] * lw[pos]
-                dbar = db[pos]
-                hw = umax
-                # work out smooth vertical velocity in cloud top regions
-                wi = vv[pos] - vv[pos] * (zkm - (thtop1[i] - namelist['ZCT'])) / (2. * namelist['ZCT']) # vertical velocity change with height
-
-            # out of thermal -> in debris under thermal // above thermal (if at start)
-            if ((zkm > thtop1[i] or zkm < thbase1[i]) and (zkm > thtop2[i] or zkm < thbase2[i]) and (zkm < downbase[i])) or (zkm > thtop1[i] and zkm > thtop2[i]):
-                temp = tr[pos] - 1.
-                lwc = namelist['RATDEB'] * lw[pos]
-                dbar = db[pos]
-                hw = 0.
-                wi = 0.0
-
-            # above thermal 1, within cloud top, in descending thermal remnants
-            if zkm > thtop1[i] and zkm <= cldtop[i] and zkm >= downbase[i]:
-                temp = tr[pos] - 2.
-                lwc = namelist['RATDEB'] * lw[pos]
-                dbar = db[pos]
-                hw = 0.
-                if cldtop[i] > namelist['GENCTOP']:
-                    # cloud top above general cloud top -> prescribed verical velocity
-                    wi = namelist['WCTDEB']
-                else:
-                    wi = 0.
-
-            # horizontal position in km
+            # particle moved outside thermal and into downdraft - kind of needs to be checked 1st
             if x >= namelist['TWID']:
-                # particle has left the thermal, into downdraught
                 temp = tr[pos] - 2.
                 lwc = namelist['RATDOWN'] * lw[pos]
                 dbar = db[pos]
@@ -621,29 +569,8 @@ def graupel():
                 downflag = 1 # in downdraft
                 zdown = zkm
 
-        else:
-            # particle is in downdraft
-            temp = tr[pos] - 2.
-            lwc = namelist['RATDOWN'] * lw[pos]
-            dbar = db[pos]
-            hw = 0.
-            wi = -5.
-            # make downdraughts no deeper than DDEPTH km
-            if abs(zdown - zkm) >= namelist['DDEPTH']:
-                # reset particle to normal environment
-                downflag = 0
-                xold = 0
-                x = 0.
-                zdown = 0.
-        '''
-        if downflag == 0:
-            # Check whether thermal 2 exists
-            thermal2_exists = (np.isfinite(thtop2[i]) and np.isfinite(thbase2[i]))
-            in_thermal1 = (zkm <= thtop1[i] - namelist['ZCT'] and zkm >= thbase1[i])
-            in_thermal2 = (thermal2_exists and zkm <= thtop2[i] - namelist['ZCT'] and zkm >= thbase2[i])
-
-            ## *** particle is in thermal *** - condition 1 
-            if in_thermal1 or in_thermal2:
+            ## *** particle is in thermal *** - condition 1 - + very explicitly not in zct zone
+            elif in_thermal1 or in_thermal2:
                 # Particle is inside thermal 1 or thermal 2
                 temp = tr[pos] - 1.
                 lwc = namelist['RATTH'] * lw[pos]
@@ -651,7 +578,7 @@ def graupel():
                 wi = vv[pos]
                 hw = 0.
 
-            ## *** particle is in ZCT zone (only region where it can move horizontally) ***
+            ## *** thermal at top of cloud + particle is in ZCT zone (only region where it can move horizontally!) ***
             elif (zkm <= thtop1[i] and zkm >= thtop1[i] - namelist['ZCT']):
                 temp = tr[pos] - 1.
                 lwc = namelist['RATCT'] * lw[pos]
@@ -660,8 +587,8 @@ def graupel():
                 # work out smooth vertical velocity in cloud top regions
                 wi = vv[pos] - vv[pos] * (zkm - (thtop1[i] - namelist['ZCT'])) / (2. * namelist['ZCT']) # vertical velocity change with height
 
-            # *** Particle is above thermal 1, in descending remnants ***
-            elif (zkm > thtop1[i] and zkm <= cldtop[i] and (not np.isfinite(downbase[i]) or zkm >= downbase[i])):
+            # *** Particle is in descending remnants of thermal 1 (which has just switched with thermal 2) ***
+            elif zkm > downbase[i] and zkm <= cldtop[i]:
                 temp = tr[pos] - 2.
                 lwc = namelist['RATDEB'] * lw[pos]
                 dbar = db[pos]
@@ -671,17 +598,6 @@ def graupel():
                 else:
                     wi = 0.
 
-            # particle moved outside thermal and into downdraft
-            elif x >= namelist['TWID']:
-                # particle has left the thermal, into downdraught
-                temp = tr[pos] - 2.
-                lwc = namelist['RATDOWN'] * lw[pos]
-                dbar = db[pos]
-                hw = 0.
-                wi = -5.
-                downflag = 1 # in downdraft
-                zdown = zkm
-
             # particle is in debris region
             else:
                 temp = tr[pos] - 1.
@@ -689,7 +605,7 @@ def graupel():
                 dbar = db[pos]
                 hw = 0.
                 wi = 0.0
-        
+
         else:
             # particle is in downdraft
             temp = tr[pos] - 2.
@@ -704,11 +620,16 @@ def graupel():
                 xold = 0
                 x = 0.
                 zdown = 0.
-        '''
-        """ ~ ~ ~ ~ ~ ~ ~ """            
 
         # deplete the lwc if above 7 km (due to conversion to ice)
         if zkm >= 7:
+            lwc7 = lwc
+            if zkm < 10.:
+                lwc = lwc7 - (zkm - 7.) * lwc7 / (10. - 7.)
+            else:
+                lwc = 0.
+            
+            '''
             if zflag == 0:
                 lwc7 = lwc
                 zflag = 1
@@ -716,6 +637,7 @@ def graupel():
                 lwc = lwc7 - (zkm - 7.) * lwc7 / (10. - 7.)
             if zkm >= 10.:
                 lwc = 0.
+                '''
 
         # density of air
         rhoa = pres / (RD * temp)
@@ -748,19 +670,18 @@ def graupel():
             dr300 = 2.0e-6
             '''
             # calculate drag coefficient for 300 um particle
-            cd = drag(0.15e-3, rhog, rhoa) ## 
-        #print(
-        #    f"zkm={zkm}, zinit={namelist['zinit']/1000}, "
-        #    f"thtop1={thtop1[i]}, thbase1={thbase1[i]}, "
-        #    f"downflag={downflag}, lwc_defined={'lwc' in locals()}")
-        #print(
-        #    f"zkm={zkm}, thtop1={thtop1[i]}, thbase1={thbase1[i]}, "
-        #    f"thtop2={thtop2[i]}, thbase2={thbase2[i]}, "
-        #    f"downbase={downbase[i]}, downflag={downflag}")
-        
-            vt300 = 8. * 0.15 * 1.0e-3 * 220. * GRAV / (3. * rhoa * cd) # terminal velocity for 300um particle
+            #cd = drag(0.15e-3, rhog, rhoa) ## 
+            cd = drag(0.15e-3, 100., rhoa) ## 
+            #vt300 = 8. * 0.15 * 1.0e-3 * 220. * GRAV / (3. * rhoa * cd) # terminal velocity for 300um particle
+            vt300 = 8. * 0.15 * 1.0e-3 * 100. * GRAV / (3. * rhoa * cd) # terminal velocity for 300um particle
+            vt300 = vt300 ** 0.5 # needs to be square rooted
+            
+            
+            #dmr300 = PI * 0.15e-3 ** 2 * vt300 * lwc * namelist['DELTIM'] # riming mass change for 300um particle
             dmr300 = PI * 0.15e-3 ** 2 * vt300 * lwc * namelist['DELTIM'] # riming mass change for 300um particle
-            dr300 = dmr300 / (4. * PI * 0.15e-3 ** 2 * 220.) # radius change for 300um particle
+            #dr300 = dmr300 / (4. * PI * 0.15e-3 ** 2 * 220.) # radius change for 300um particle
+            dr300 = dmr300 / (4. * PI * 0.15e-3 ** 2 * 100.) # radius change for 300um particle
+            #dr300 = 2.0e-6
             # these values ^^ are used for smooth transition for riming between 200-300 um diameter particles
         
         # 3. calculate drag and terminal velocity for the particle * * * * * * * * * * * * * * * * * *
@@ -773,30 +694,21 @@ def graupel():
         if dmm <= 0.30:
             # for small particles, use empirical relationship, based on temp
             if dmm <= 0.2:
-                if (-6.5 < tempc <= -4.) or (-16 < tempc <= -14.):
-                    vt = 100. * (0.395 * dmm - 0.177 * dmm ** 2 + 0.073 * dmm ** 3 - 0.0153 * dmm ** 4)
-                if (-14. < tempc <= -12) or (-8 < tempc <= -6.5) or tempc > -4:
-                    vt = 40. * dmm
-                if -12 < tempc <= -8:
-                    vt = 51. * dmm
-                if tempc <= -16:
-                    vt = 60. * dmm
-                vt *= 0.01
-                vtsave = vt
+                vt = vt_small(dmm, tempc)
             else:
-                if graup == 0:
-                    vt200 = vtsave ## unsure of what is happening here ?? - terminal velocity for 200um particle
-                    vt = vt200 + (vt300 - vt200) * (dmm - 0.2) / 0.1
+                # for particles between 200-300 um - smooth transition between
+                vt200 = vt_small(0.2, tempc) ## terminal velocity for 200um particle
+                vt = vt200 + (vt300 - vt200) * (dmm - 0.2) / 0.1 # type: ignore
         else:
+            # graupel particle - bigger than 300um
             vt = 8. * rad * rhog * GRAV / (3. * rhoa * cd)
             vt = vt ** 0.5
 
         # 4. calculate rate of diffusional growth of ice crystals * * * * * * * * * * * * * * * * * *
         # need to know surface temp
-        # On first round, use temp + 2.4 for surface temp (not sure why ??)
         if one == 0:
             one = 1 # so next time step, use main growth loop
-            ts = temp + 2.4
+            ts = temp + 2.4 # On first round, use temp + 2.4 for surface temp (not sure why ??)
             # adding in conc
             if dmm <= 0.3:
             # diam is in mm
@@ -813,25 +725,21 @@ def graupel():
             horizontal_wind_s.append(0) # [0] ? idc
             conc_s.append(conc_0) # initial conc
 
-
         # dm for diffusion only for Diameter < 300 um
         if dmm <= 0.30:
             if dmm <= 0.20:
                 ts = temp
-                delrd = 1.0e-6 * gr(tempc)
-                ddsave = delrd
+                delrd = 1.0e-6 * gr(tempc) # type: ignore
             else:
                 # for particles between 200-300 um - smooth transition between
-                if graup == 0:
-                    dd200 = ddsave
-                    graup = 1
-                drtrans = dd200 + (dr300 - dd200) * (dmm - 0.2) / 0.1
+                dd200 = 1.0e-6 * gr(tempc)  # type: ignore
+                drtrans = dd200 + (dr300 - dd200) * (dmm - 0.2) / 0.1 # type: ignore
 
         # 5. calculate vapour pressure * * * * * * * * * * * * * * * * * * * * * * * * * * 
         if ts == 0:
             break
-        esi = 100. * vapour(TTR) * (math.exp((ts - TTR) * LS / (RV * ts * TTR)))
-        rvs = esi / (RV * ts)
+        esi = 100. * vapour(TTR) * (math.exp((ts - TTR) * LS / (RV * ts * TTR))) # type: ignore
+        rvs = esi / (RV * ts) # type: ignore
         es = 100. * vapour(temp)
         re = es / (RV * temp)
         # Sherwood number as per Mason (1971) - mass transfer 
@@ -839,7 +747,7 @@ def graupel():
         # Nusselt number as per Mason (1971) - heat transfer
         nnu = nsh
         # use lab values for vapour growth
-        delrd = 1.0e-6 * gr(tempc)
+        delrd = 1.0e-6 * gr(tempc) # type: ignore
         ## vapour growth of crystals 
         delmd = 2. * PI * rad * D * nsh * (re - rvs) * namelist['DELTIM'] if dmm > 0.2 else 0. # diffusional growth increment mass (kg) for particles > 200 um
         
@@ -989,7 +897,7 @@ def graupel():
             # If warm growth, assume unfrozen water is shed
             if tflag == 1:
                 es = 100. * vapour(ts)
-                rvs = es / (RV * ts)
+                rvs = es / (RV * ts) # type: ignore
                 re = es / (RV * temp)
                 frac1 = TK * (temp - ts)
                 frac2 = LV * D * (rvs - re)
@@ -1008,13 +916,13 @@ def graupel():
         if rad * 2.e3 <= 0.2:
             # small particles (<200 um) - only diffusional growth
             delrr = 0.
-        if rad * 2.e3 <= 0.3 and rad * 2.e3 > 0.2:
+        elif rad * 2.e3 <= 0.3 and rad * 2.e3 > 0.2:
             # for particles between 200-300 um - smooth transition between diffusional and riming growth
             delrr = drtrans
-        if rad * 2.e3 > 0.3:
+        #if rad * 2.e3 > 0.3:
+        else:
             # for particles > 300 um - only riming growth
             delrr = delmr / (4. * PI * rad * rad * rhor)
-            """ this has been added in"""
             delrd = abs(delmd) / (4. * PI * rad * rad * RHOI)
             if delmd < 0.: # not sure i understand this - if delmd is negative, then delrd is negative? - so subtract from delr?
                 delrd = -delrd
@@ -1024,7 +932,7 @@ def graupel():
 
         # 8. changes in mass and bulk density * * * * * * * * * * * * * * * * * * * * * * * * * *
         # new bulk density of the graupel particle
-        mass = mass + delmr
+        mass = mass + delmr + delmd # new mass of particle - from riming and diffusional growth
         rhog = mass * 3. / (4. * PI * rad ** 3)
         if rhog < 100.:
             rhog = 100.
@@ -1122,7 +1030,6 @@ def graupel():
                     hmrime = 0.
                     hmzone5 = 0
 
-        time_m = time + namelist['DELTIM'] / 60. # time in minutes
 
         # 10. move the particle * * * * * * * * * * * * * * * * * * * * * * * * * *
         # particle velocity: vt is positive down
@@ -1150,6 +1057,10 @@ def graupel():
         horizontal_position_s.append(x)
         horizontal_wind_s.append(hw)
         conc_s.append(conc_n)
+
+        time_m = time + namelist['DELTIM'] / 60. # time in minutes
+        time += namelist['DELTIM'] / 60.
+
         # if time > run_time, env temp is warmer than 0, or z < zbase (alt of cloud base), then break
         if time_m >= namelist['runtime'] or temp > 273.15 or z <= zbase:
             break
@@ -1159,6 +1070,7 @@ def graupel():
         xold = x
 
         # back for more growth -- loop on i
+        #time += 1
         nx = 0
         indx += 1
 
@@ -1272,7 +1184,8 @@ def main():
         at_, alwc_ = trev(namelist['pbase'], namelist['tbase'], ps[ii]) # temp + LWC
         lw[ii] = alwc_ * 1.0e-3 # lwc through column
         tr[ii] = at_ + 273.15 # temp through column
-        db[ii] = namelist['DBAR'] + ii / 125. # mean cloud drop diameter (not sure why / 125.)
+        #db[ii] = namelist['DBAR'] + ii / 125. # mean cloud drop diameter (not sure why / 125.)
+        db[ii] = namelist['DBAR'] + max(0., (namelist['pbase'] - ps[ii]) * 2.) / 125. # allows DBAR as defined to start at cloud base
 
         # environmental updraft
         # vv = vertical velocity defined at each height
@@ -1301,7 +1214,7 @@ def main():
 
     # setting up second thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # can another thermal fit below first one? - throp2 is a minimum of 3km in alt
-    min_alt = zbase/1000 # 3
+    min_alt = zbase/1000 # cloud base (km)
 
     if thbase1[0] - namelist['TGAP'] >= min_alt: 
         thtop2[0] = thbase1[0] - namelist['TGAP'] # yes - make thermal top
@@ -1345,7 +1258,7 @@ def main():
             # base of thermal 1 is above ground, so it does exist
             thbase1[i] = thbase1[i - 1] + (wthb1 * namelist['DELTIM']) / 1000.
         if thbase1[i] < 0.:
-            thbase1[i] = 0. # base of thermal cannot be below ground
+            thbase1[i] = np.nan # base of thermal cannot be below ground
 
         # create / move thermal 2 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
         if tht2flag != 1:
@@ -1514,23 +1427,30 @@ def main():
     make_nc_variable(env_nc, db, "cloud_drop_diameter", ("height",), "um", "mean cloud drop diameter")
     make_nc_variable(env_nc, vv, "vertical_velocity", ("height",), "m s-1", "environmental vertical velocity")
     ## envi variables varying with time:
-    make_nc_variable(env_nc, np.where(thtop1[:numt_0] == np.nan, np.nan, thtop1[:numt_0]), "thermal_top_1", ("time",), "km", "top altitude of thermal 1")
-    make_nc_variable(env_nc, np.where(thbase1[:numt_0] == np.nan, np.nan, thbase1[:numt_0]), "thermal_base_1", ("time",), "km", "base altitude of thermal 1")
-    make_nc_variable(env_nc, np.where(thtop2[:numt_0] == np.nan, np.nan, thtop2[:numt_0]), "thermal_top_2", ("time",), "km", "top altitude of thermal 2")
-    make_nc_variable(env_nc, np.where(thbase2[:numt_0] == np.nan, np.nan, thbase2[:numt_0]), "thermal_base_2", ("time",), "km", "base altitude of thermal 2")
-    make_nc_variable(env_nc, np.where(cldtop[:numt_0] == np.nan, np.nan, cldtop[:numt_0]), "cloud_top", ("time",), "km", "cloud top altitude")
-    make_nc_variable(env_nc, np.where(downbase[:numt_0] == np.nan, np.nan, downbase[:numt_0]), "debris_base", ("time",), "km", "base altitude of descending cloud-top debris")
+    #make_nc_variable(env_nc, np.where(thtop1[:numt_0] == np.nan, np.nan, thtop1[:numt_0]), "thermal_top_1", ("time",), "km", "top altitude of thermal 1")
+    #make_nc_variable(env_nc, np.where(thbase1[:numt_0] == np.nan, np.nan, thbase1[:numt_0]), "thermal_base_1", ("time",), "km", "base altitude of thermal 1")
+    #make_nc_variable(env_nc, np.where(thtop2[:numt_0] == np.nan, np.nan, thtop2[:numt_0]), "thermal_top_2", ("time",), "km", "top altitude of thermal 2")
+    #make_nc_variable(env_nc, np.where(thbase2[:numt_0] == np.nan, np.nan, thbase2[:numt_0]), "thermal_base_2", ("time",), "km", "base altitude of thermal 2")
+    #make_nc_variable(env_nc, np.where(cldtop[:numt_0] == np.nan, np.nan, cldtop[:numt_0]), "cloud_top", ("time",), "km", "cloud top altitude")
+    #make_nc_variable(env_nc, np.where(downbase[:numt_0] == np.nan, np.nan, downbase[:numt_0]), "debris_base", ("time",), "km", "base altitude of descending cloud-top debris")
+
+    make_nc_variable(env_nc, thtop1[:numt_0], "thermal_top_1", ("time",), "km", "top altitude of thermal 1")
+    make_nc_variable(env_nc, thbase1[:numt_0], "thermal_base_1", ("time",), "km", "base altitude of thermal 1")
+    make_nc_variable(env_nc, thtop2[:numt_0], "thermal_top_2", ("time",), "km", "top altitude of thermal 2")
+    make_nc_variable(env_nc, thbase2[:numt_0], "thermal_base_2", ("time",), "km", "base altitude of thermal 2")
+    make_nc_variable(env_nc, cldtop[:numt_0], "cloud_top", ("time",), "km", "cloud top altitude")
+    make_nc_variable(env_nc, downbase[:numt_0], "debris_base", ("time",), "km", "base altitude of descending cloud-top debris")
 
     ##### deal with ice particle variables #############
     ice_nc = nc.createGroup("ice_particles")
-    make_nc_variable(ice_nc, particle_data["diameter"], "diameter", ("particle", "time"), "m", "graupel particle diameter")
-    make_nc_variable(ice_nc, particle_data["density"], "density", ("particle", "time"), "kg m-3", "graupel particle bulk density")
-    make_nc_variable(ice_nc, particle_data["mass"], "mass", ("particle", "time"), "kg", "graupel particle mass")
-    make_nc_variable(ice_nc, particle_data["surface_temperature"], "surface_temperature", ("particle", "time"), "K", "graupel particle surface temperature")
-    make_nc_variable(ice_nc, particle_data["terminal_velocity"], "terminal_velocity", ("particle", "time"), "m s-1", "graupel particle terminal velocity")
-    make_nc_variable(ice_nc, particle_data["altitude"], "altitude", ("particle", "time"), "m", "graupel particle altitude")
-    make_nc_variable(ice_nc, particle_data["horizontal_position"], "horizontal_position", ("particle", "time"), "km", "graupel particle horizontal position")
-    make_nc_variable(ice_nc, particle_data["horizontal_wind"], "horizontal_wind", ("particle", "time"), "m s-1", "graupel particle horizontal wind")
+    make_nc_variable(ice_nc, particle_data_t["diameter"], "diameter", ("particle", "time"), "m", "graupel particle diameter")
+    make_nc_variable(ice_nc, particle_data_t["density"], "density", ("particle", "time"), "kg m-3", "graupel particle bulk density")
+    make_nc_variable(ice_nc, particle_data_t["mass"], "mass", ("particle", "time"), "kg", "graupel particle mass")
+    make_nc_variable(ice_nc, particle_data_t["surface_temperature"], "surface_temperature", ("particle", "time"), "K", "graupel particle surface temperature")
+    make_nc_variable(ice_nc, particle_data_t["terminal_velocity"], "terminal_velocity", ("particle", "time"), "m s-1", "graupel particle terminal velocity")
+    make_nc_variable(ice_nc, particle_data_t["altitude"], "altitude", ("particle", "time"), "m", "graupel particle altitude")
+    make_nc_variable(ice_nc, particle_data_t["horizontal_position"], "horizontal_position", ("particle", "time"), "km", "graupel particle horizontal position")
+    make_nc_variable(ice_nc, particle_data_t["horizontal_wind"], "horizontal_wind", ("particle", "time"), "m s-1", "graupel particle horizontal wind")
     # not including conc, as in the model it is just wrong
     #make_nc_variable(ice_nc, particle_data["concentration"], "concentration", ("particle", "time"), "m-3", "graupel particle concentration")
 
@@ -1539,14 +1459,14 @@ def main():
     if hm > 0:
         ##### deal with ice splinter variables #############
         splinter_nc = nc.createGroup("splinter_particles")
-        make_nc_variable(splinter_nc, splinter_data["diameter"], "diameter", ("splinter_particle", "time"), "m", "graupel splinter diameter")
-        make_nc_variable(splinter_nc, splinter_data["density"], "density", ("splinter_particle", "time"), "kg m-3", "graupel splinter bulk density")
-        make_nc_variable(splinter_nc, splinter_data["mass"], "mass", ("splinter_particle", "time"), "kg", "graupel splinter mass")
-        make_nc_variable(splinter_nc, splinter_data["surface_temperature"], "surface_temperature", ("splinter_particle", "time"), "K", "graupel splinter surface temperature")
-        make_nc_variable(splinter_nc, splinter_data["terminal_velocity"], "terminal_velocity", ("splinter_particle", "time"), "m s-1", "graupel splinter terminal velocity")
-        make_nc_variable(splinter_nc, splinter_data["altitude"], "altitude", ("splinter_particle", "time"), "m", "graupel splinter altitude")
-        make_nc_variable(splinter_nc, splinter_data["horizontal_position"], "horizontal_position", ("splinter_particle", "time"), "km", "graupel splinter horizontal position")
-        make_nc_variable(splinter_nc, splinter_data["horizontal_wind"], "horizontal_wind", ("splinter_particle", "time"), "m s-1", "graupel splinter horizontal wind")
+        make_nc_variable(splinter_nc, splinter_data_t["diameter"], "diameter", ("splinter_particle", "time"), "m", "graupel splinter diameter")
+        make_nc_variable(splinter_nc, splinter_data_t["density"], "density", ("splinter_particle", "time"), "kg m-3", "graupel splinter bulk density")
+        make_nc_variable(splinter_nc, splinter_data_t["mass"], "mass", ("splinter_particle", "time"), "kg", "graupel splinter mass")
+        make_nc_variable(splinter_nc, splinter_data_t["surface_temperature"], "surface_temperature", ("splinter_particle", "time"), "K", "graupel splinter surface temperature")
+        make_nc_variable(splinter_nc, splinter_data_t["terminal_velocity"], "terminal_velocity", ("splinter_particle", "time"), "m s-1", "graupel splinter terminal velocity")
+        make_nc_variable(splinter_nc, splinter_data_t["altitude"], "altitude", ("splinter_particle", "time"), "m", "graupel splinter altitude")
+        make_nc_variable(splinter_nc, splinter_data_t["horizontal_position"], "horizontal_position", ("splinter_particle", "time"), "km", "graupel splinter horizontal position")
+        make_nc_variable(splinter_nc, splinter_data_t["horizontal_wind"], "horizontal_wind", ("splinter_particle", "time"), "m s-1", "graupel splinter horizontal wind")
         # not including conc
         #make_nc_variable(splinter_nc, splinter_data["concentration"], "concentration", ("splinter_particle", "time"), "m-3", "graupel particle concentration")
 
