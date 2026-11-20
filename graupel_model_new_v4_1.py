@@ -797,8 +797,7 @@ def graupel():
             yi_all = partial_integral_gamma(namelist['n_cloud_drops'], hydroparameters['cloud']['mu'], lam, lower, upper)
         else:
             yi_all = np.zeros(len(lower))
-
-
+        
         # dm for riming - only for D > 300 um
         if dmm > 0.30:
             sumkap = 0.
@@ -810,14 +809,17 @@ def graupel():
                 mom_beta = mom ** beta
                 # the cloud is represented by a Gaussian distribution of droplet sizes, with mean dbar and std dev stdv
                 # Start: loop through 24 bins of droplet spectrum + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +                
-                for i in range(len(lower)):
+                for k in range(len(lower)):
                     # 6.1 Collection kernel calculation - for each channel * * * * * * * * * * * * * * * * * * * * * * * * * *
-                    xi = radius_mu_list[i] # channel radius (m)
-                    yi = yi_all[i]
+                    xi = radius_mu_list[k] # channel radius (mu)
+                    xi_m = xi * 1.0e-6  
+                    yi = yi_all[k]
                     sumy = yi + sumy # cumulative sum of droplet concentration - should roughly be n_cloud_drops
                     # collection kernel - formulae derived from Beard and Grover (1974) relationships
                     # v how effectively the graupel collects drops
                     if xi <= 2.0:
+                        kappa = 1 * 1.0e-6 * mom_beta
+                    if xi == 2.0:
                         kappa = 1.09 * 1.0e-6 * mom_beta
                     elif xi <= 3.0:
                         kappa = 3.56 * 1.0e-6 * mom_beta
@@ -860,7 +862,7 @@ def graupel():
 
                     # 6.2 Impact velocity of cloud drops calculation * * * * * * * * * * * * * * * * * * * * * * * * * *
                     # impact velocity of impinging cloud drops from Rasmussen and Heymsfield (1985)
-                    ns = 2. * vt * xi * xi * 1000. / (9. * ETA * rad)
+                    ns = 2. * vt * xi_m * xi_m * 1000. / (9. * ETA * rad)
                     w = math.log10(ns)
                     w2 = w * w
                     w3 = w ** 3
@@ -898,7 +900,7 @@ def graupel():
                     # 6.3 Density of newly formed rime calculation * * * * * * * * * * * * * * * * * * * * * * * * * *
                     # density of the newly formed rime -- equation from Heymsfield and Pflaum (1985)
                     tsc = ts - 273.15
-                    arg = -dbar * vimp / (2. * tsc)
+                    arg = -(2*xi) * vimp / (2. * tsc)
                     arg2 = arg ** 2
                     arg3 = arg ** 3
                     if tsc <= -5. or arg >= -1.6:
@@ -1467,7 +1469,7 @@ def main():
     make_nc_variable(env_nc, ps, "pressure", ("height",), "hPa", "environmental pressure")
     make_nc_variable(env_nc, tr, "temperature", ("height",), "K", "environmental temperature")
     make_nc_variable(env_nc, lw, "lwc", ("height",), "kg m-3", "environmental liquid water content")
-    make_nc_variable(env_nc, db, "cloud_drop_diameter", ("height",), "um", "mean cloud drop diameter")
+    #make_nc_variable(env_nc, db, "cloud_drop_diameter", ("height",), "um", "mean cloud drop diameter") # use casim, this is not used
     make_nc_variable(env_nc, vv, "vertical_velocity", ("height",), "m s-1", "environmental vertical velocity")
     ## envi variables varying with time:
     #make_nc_variable(env_nc, np.where(thtop1[:numt_0] == np.nan, np.nan, thtop1[:numt_0]), "thermal_top_1", ("time",), "km", "top altitude of thermal 1")
