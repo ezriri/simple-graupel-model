@@ -1,4 +1,3 @@
-
 ## very very different from v1 -> include secondary ice - whole of graupel() is changed
 ## v3 netcdf + namelist added. _3 -> 
 ## following on from v3_3, we have capped the cloud top so the particles cannot exceed the cloud top / CTOP
@@ -87,7 +86,6 @@ TTR = 273.16 # triple point temperature of water (K) ??
 LS = 2.837e6 # latent heat of sublimation (J/kg)
 LF = 3.12e5 # latent heat of fusion (J/kg)
 LV = 2.5e6 # latent heat of vaporization (J/kg)
-NMAX = 500.e6 # 
 DIS = 0.25 # dispersion 
 GRAV = 9.81 # gravity
 ETA = 1.67e-5 # dynamic viscosity of air (Pa*s) ?
@@ -400,7 +398,7 @@ def vt_small(dmm, tempc):
 #~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
 
 
-""" 
+"""
 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
  main functions 
 ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
@@ -656,6 +654,7 @@ def graupel():
             rhog = 900. # initial ice density (kg m^-3)
             # initial mass
             mass = 4. * PI * rad ** 3 * rhog / 3.
+            
             '''
             # calculate vt and delmr for a 300 um diameter particle
             # Assume density of 100 g/cm^3 just now as a quick fix - 7/7/94
@@ -750,8 +749,8 @@ def graupel():
         delrd = 1.0e-6 * gr(tempc) # type: ignore
         ## vapour growth of crystals 
         delmd = 2. * PI * rad * D * nsh * (re - rvs) * namelist['DELTIM'] if dmm > 0.2 else 0. # diffusional growth increment mass (kg) for particles > 200 um
-        
 
+        
         # 6. calculate rimming * * * * * * * * * * * * * * * * * * * * * * * * * * 
         # dm for riming - only for D > 300 um
         delmr = 0.
@@ -765,13 +764,13 @@ def graupel():
                 mom = mass * vt * 1.0e5
                 beta = 0.738
                 # the cloud is represented by a Gaussian distribution of droplet sizes, with mean dbar and std dev stdv
-                # Start: loop through 24 channels of droplet spectrum + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +                
+                # Start: loop through 24 bins of droplet spectrum + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + + +                
                 for k in range(24):
                     # 6.1 Collection kernel calculation - for each channel * * * * * * * * * * * * * * * * * * * * * * * * * *
                     xi = (26. - (k + 1.)) * 1.0e-6
                     hxa = (xi * 1.0e6 - dbar / 2.) / stdv
                     hxa = hxa ** 2 / 2.
-                    yi = NMAX * math.exp(-hxa) # concentration of droplets in channel k
+                    yi = namelist['NMAX'] * math.exp(-hxa) # concentration of droplets in bin k
                     sumy = yi + sumy
                     # collection kernel - formulae derived from Beard and Grover (1974) relationships
                     # ^ how effectively the graupel collects drops
@@ -1199,7 +1198,7 @@ def main():
         else:
             # in cloud + alt >= zmax
             # decreasing updraft above this
-            vv[ii] = (namelist['maxup'] / ((namelist['CTOP'] + 2.) - namelist['zmax'])) * ((namelist['CTOP'] + 2.) - alt[ii] / 1000.0)
+            vv[ii] = (namelist['maxup'] / ((namelist['CTOP'] + 2.) - namelist['zmax'])) * ((namelist['CTOP'] + 2.) - alt[ii] / 1000.0) # 2km above cloud top -> updraft = 0.0 m/s
 
     # 4. set up thermals -- new(ish)!
     # 4a. setting up first thermal - - - - - - - - - - - - - - - - - - - - - - - - - - - -

@@ -32,6 +32,7 @@ GENCTOP = CTOP - 0.5  # height of general cloud top (km)
 tbase = 7.377        # temperature at cloud base (ºC)
 pbase = 656.25        # pressure at cloud base (mb)
 DBAR = 20.          # mean cloud droplet diameter (um)
+NMAX = 500.e6       # maximum concentration of cloud droplets (m^-3)
 
 ZCT = TDEPTH / 6. # ratio of thermal top / depth of thermal 
 #ZCT1 = ZCT / 3.

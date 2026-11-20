@@ -7,7 +7,7 @@
 diam = [.05, .1, .2, .3, .4, .5, .6, .7, .8, .9]
 #diam = [.05, .1, .15, .2, .3, .4, .5, .6, .7, .8, .9, 1., 1.1, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2, 2.4]
 zinit = 6500 # ** initial height of particles (m) **
-ttoph = 6500 ## height of first thermal top (m)
+#ttoph = 6500 ## height of first thermal top (m)
 
 #cloud_base_alt = 2951 #(m) ** currently fixed in model -PBASE **
 #cloud_base_pres = 705 #(mb) ** currently fixed in model -PBASE **
@@ -19,7 +19,7 @@ zmax = 7            # height of maximum updraft (km) - 7km from paper
 UFACT = 1.0         # mult factor for umax (max updraft)
 DDEPTH = 1.0        # depth that downdraught descends
 TDEPTH = 2.0        # initial depth of thermals (km)
-TGAP = 1.2          # vertical distance between thermals (km)
+TGAP =  20          # vertical distance between thermals (km)
 TWID = TDEPTH       # width of thermal incl downdraught
 DOWN = 0.4          # width of downdraught (km)
 # TWID = TDEPTH - (DOWN * 2) # this would be accurate if wanted to change downdraft width?
@@ -29,9 +29,10 @@ UMAX = 2.8          # max horizontal wind (m/s) ?? # UFACT * maxup / 2.
 wbase = 2 # ** updraft velocity at cloud base (m/s) **
 CTOP = 8.0         # altitude of maximum cloud top (km)
 GENCTOP = CTOP - 0.5  # height of general cloud top (km)
-tbase = 10.6        # temperature at cloud base (ºC)
-pbase = 705.        # pressure at cloud base (mb)
+tbase = 7.377        # temperature at cloud base (ºC)
+pbase = 656.25        # pressure at cloud base (mb)
 DBAR = 20.          # mean cloud droplet diameter (um)
+NMAX = 500.e6       # maximum concentration of cloud droplets (m^-3)
 
 ZCT = TDEPTH / 6. # ratio of thermal top / depth of thermal 
 #ZCT1 = ZCT / 3.
@@ -55,7 +56,7 @@ HMRINIT = 10.0e-6   # initial radius of HM splinter
 HMFACT = 5.0e7      # number splinters produced per kg of rime
 
 ## other ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-save_loc = '/gws/ssde/j25a/dcmex/users/ezriab/graupel_model_output/v3_2/'
+save_loc = '/gws/ssde/j25a/dcmex/users/ezriab/graupel_model_output/30th/'
 runtime = 60 # ** simulation run time (min) **
 DELTIM = 5. # time step interval (s)
 MAX2 = 1500        # number of altitude values (will be *10 -> (m) )
