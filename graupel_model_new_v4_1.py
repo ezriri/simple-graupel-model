@@ -100,7 +100,7 @@ hydroparameters = {'cloud': {'mu':namelist['cloud_mu'],'c':522,'d':3}}
 
 # the whole environment is initialised with empty arrays defined by MAX values
 lw = np.zeros(namelist['MAX2'])                              # LWC (at all heights)
-db = np.zeros(namelist['MAX2'])                              # dbar ??
+#db = np.zeros(namelist['MAX2'])                              # dbar ??
 vv = np.zeros(namelist['MAX2'])                              # vertical velocity
 alt = np.zeros(namelist['MAX2'])                             # altitude (m?)
 ps = np.zeros(namelist['MAX2'])                              # pressure (mb?)
@@ -594,7 +594,7 @@ def graupel():
             if x >= namelist['TWID']:
                 temp = tr[pos] - 2.
                 lwc = namelist['RATDOWN'] * lw[pos]
-                dbar = db[pos]
+                #dbar = db[pos]
                 hw = 0.
                 wi = -5.
                 downflag = 1 # in downdraft
@@ -605,7 +605,7 @@ def graupel():
                 # Particle is inside thermal 1 or thermal 2
                 temp = tr[pos] - 1.
                 lwc = namelist['RATTH'] * lw[pos]
-                dbar = db[pos]
+                #dbar = db[pos]
                 wi = vv[pos]
                 hw = 0.
 
@@ -613,7 +613,7 @@ def graupel():
             elif (zkm <= thtop1[i] and zkm >= thtop1[i] - namelist['ZCT']):
                 temp = tr[pos] - 1.
                 lwc = namelist['RATCT'] * lw[pos]
-                dbar = db[pos]
+                #dbar = db[pos]
                 hw = umax
                 # work out smooth vertical velocity in cloud top regions
                 wi = vv[pos] - vv[pos] * (zkm - (thtop1[i] - namelist['ZCT'])) / (2. * namelist['ZCT']) # vertical velocity change with height
@@ -622,7 +622,7 @@ def graupel():
             elif zkm > downbase[i] and zkm <= cldtop[i]:
                 temp = tr[pos] - 2.
                 lwc = namelist['RATDEB'] * lw[pos]
-                dbar = db[pos]
+                #dbar = db[pos]
                 hw = 0.
                 if cldtop[i] > namelist['GENCTOP']:
                     wi = namelist['WCTDEB']
@@ -633,7 +633,7 @@ def graupel():
             else:
                 temp = tr[pos] - 1.
                 lwc = namelist['RATDEB'] * lw[pos]
-                dbar = db[pos]
+                #dbar = db[pos]
                 hw = 0.
                 wi = 0.0
 
@@ -641,7 +641,7 @@ def graupel():
             # particle is in downdraft
             temp = tr[pos] - 2.
             lwc = namelist['RATDOWN'] * lw[pos]
-            dbar = db[pos]
+            #dbar = db[pos]
             hw = 0.
             wi = -5.
             # make downdraughts no deeper than DDEPTH km
@@ -653,14 +653,17 @@ def graupel():
                 zdown = 0.
 
         # deplete the lwc if above 7 km (due to conversion to ice)
+        '''
+        # new version? 
         if zkm >= 7:
             lwc7 = lwc
             if zkm < 10.:
                 lwc = lwc7 - (zkm - 7.) * lwc7 / (10. - 7.)
             else:
                 lwc = 0.
-            
-            '''
+        '''
+        # original version 
+        if zkm >= 7:
             if zflag == 0:
                 lwc7 = lwc
                 zflag = 1
@@ -668,7 +671,9 @@ def graupel():
                 lwc = lwc7 - (zkm - 7.) * lwc7 / (10. - 7.)
             if zkm >= 10.:
                 lwc = 0.
-                '''
+        else:
+            zflag = 0
+        
 
         # density of air
         rhoa = pres / (RD * temp)
@@ -1230,7 +1235,7 @@ def main():
         lw[ii] = alwc_ * 1.0e-3 # lwc through column (units kg/m3!!)
         tr[ii] = at_ + 273.15 # temp through column
         #db[ii] = namelist['DBAR'] + ii / 125. # mean cloud drop diameter (not sure why / 125.)
-        db[ii] = namelist['DBAR'] + max(0., (namelist['pbase'] - ps[ii]) * 2.) / 125. # allows DBAR as defined to start at cloud base
+        #db[ii] = namelist['DBAR'] + max(0., (namelist['pbase'] - ps[ii]) * 2.) / 125. # allows DBAR as defined to start at cloud base
 
         # environmental updraft
         # vv = vertical velocity defined at each height

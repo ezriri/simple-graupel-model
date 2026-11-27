@@ -23,12 +23,11 @@ from tracemalloc import start
 sys.path.append('/home/users/esree/dcmex_instruments/faam_data/')
 # loads of homemade functions <3 <3
 from faam_data_functions import faam_mo_files, time_adjust, get_nc_variable, mask_data, flatten_20hz_variable, mo_mean, datetime_to_sec, cloud_pass_time
-from faam_data_functions_v2 import faam_mo_files_v2, make_cdp_psd_v2, make_cdp_conc
-
+from faam_data_functions_v2 import faam_mo_files_v2, make_cdp_psd_v2, make_cdp_conc, cloud_pass_time_v2
 
 date = '220719'
 
-save_pth = '/home/users/esree/simple-graupel-model/thermal_values/'
+save_pth = '/home/users/esree/simple-graupel-model/tune_to_DCMEX/thermal_values/'
 
 faam_mo_paths_dic = faam_mo_files_v2() # dictionary containing dates + paths to nc files
 date_dict = faam_mo_paths_dic[date]
@@ -216,7 +215,7 @@ thermal_variables = {
     'w': 'w_faam_high',
     'uv': 'uv_wind_speed',}
 
-start_times_buf, end_times_buf = cloud_pass_time(mo_path_64hz, sec_buffer=5)
+start_times_buf, end_times_buf = cloud_pass_time_v2(mo_path_64hz, sec_buffer=5)
 
 results = []
 
